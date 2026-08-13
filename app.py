@@ -75,9 +75,6 @@ if st.button("🚀 ابدأ المعالجة عبر الـ 10 عقول", type="p
             st.divider()
             st.subheader("📊 مراحل معالجة العقول:")
 
-            # قائمة الموديلات البديلة بالترتيب
-            candidate_models = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro"]
-
             for i, mind in enumerate(MINDS):
                 status_text.text(f"جاري المعالجة بواسطة: {mind['name']}...")
                 
@@ -93,23 +90,11 @@ if st.button("🚀 ابدأ المعالجة عبر الـ 10 عقول", type="p
                 قم بإجراء مهمتك المحددة بناءً على كل ما سبق وتقديم النتيجة المحدثة أو المضافة.
                 """
 
-                # محاولة الاتصال بـ API عبر قائمة الموديلات البديلة
-                response = None
-                last_error = None
-                for model_name in candidate_models:
-                    try:
-                        response = client.models.generate_content(
-                            model=model_name,
-                            contents=prompt_text
-                        )
-                        if response:
-                            break
-                    except Exception as err:
-                        last_error = err
-                        continue
-
-                if not response:
-                    raise Exception(f"تعذر الاتصال بجميع الموديلات: {last_error}")
+                # استخدام الموديل المعتمد لـ google-genai
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_text
+                )
 
                 mind_output = response.text
                 current_context += f"\n\n--- [تعديلات {mind['name']}] ---\n{mind_output}"
