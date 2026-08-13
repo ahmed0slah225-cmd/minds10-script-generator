@@ -90,13 +90,13 @@ if st.button("🚀 ابدأ المعالجة عبر الـ 10 عقول", type="p
                 قم بإجراء مهمتك المحددة بناءً على كل ما سبق وتقديم النتيجة المحدثة أو المضافة.
                 """
 
-                # استخدام الموديل المعتمد لـ google-genai
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_text
+                # التحديث باستخدام Interactions API الحديثة والنموذج المعتمد gemini-3.6-flash
+                interaction = client.interactions.create(
+                    model="gemini-3.6-flash",
+                    input=prompt_text
                 )
 
-                mind_output = response.text
+                mind_output = interaction.output_text
                 current_context += f"\n\n--- [تعديلات {mind['name']}] ---\n{mind_output}"
 
                 with st.expander(f"✅ {mind['name']}", expanded=(i == len(MINDS) - 1)):
