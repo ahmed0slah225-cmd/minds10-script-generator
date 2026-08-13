@@ -90,8 +90,9 @@ if st.button("🚀 ابدأ المعالجة عبر الـ 10 عقول", type="p
                 قم بإجراء مهمتك المحددة بناءً على كل ما سبق وتقديم النتيجة المحدثة أو المضافة.
                 """
 
+                # استخدام الموديل المستقر المعتمد لـ API v1 الحالي
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash",
                     contents=prompt_text
                 )
 
