@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from google import genai
 
@@ -308,33 +309,71 @@ def trim_text(text, max_chars=14000):
     )
 
 
-def ask_gemini(client, prompt, model):
-    """استدعاء Gemini مع fallback تلقائي لو كان اسم النموذج غير متاح."""
+def ask_gemini(client, prompt, model, max_retries=5, base_delay=4, status_slot=None):
+    """
+    استدعاء Gemini مع:
+    - fallback تلقائي لو اسم النموذج غير متاح (404).
+    - إعادة محاولة تلقائية مع تأخير متصاعد لو السيرفر مزدحم (503 / 429 / UNAVAILABLE).
+    """
     requested_model = (model or "").strip() or "gemini-3.6-flash"
     fallback_model = "gemini-3.6-flash"
+    current_model = requested_model
+    last_exc = None
 
-    try:
-        response = client.models.generate_content(
-            model=requested_model,
-            contents=prompt,
-        )
-    except Exception as exc:
-        error_text = str(exc)
-        unavailable = (
-            "404" in error_text
-            or "NOT_FOUND" in error_text
-            or "no longer available" in error_text
-            or "not found" in error_text.lower()
-        )
-        if not unavailable or requested_model == fallback_model:
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=current_model,
+                contents=prompt,
+            )
+            return getattr(response, "text", "") or ""
+
+        except Exception as exc:
+            last_exc = exc
+            error_text = str(exc)
+            error_lower = error_text.lower()
+
+            not_found = (
+                "404" in error_text
+                or "NOT_FOUND" in error_text
+                or "no longer available" in error_lower
+                or "not found" in error_lower
+            )
+            overloaded = (
+                "503" in error_text
+                or "UNAVAILABLE" in error_text
+                or "429" in error_text
+                or "RESOURCE_EXHAUSTED" in error_text
+                or "overloaded" in error_lower
+                or "high demand" in error_lower
+            )
+
+            # الموديل مش موجود -> جرب الموديل البديل فورًا من غير انتظار
+            if not_found and current_model != fallback_model:
+                current_model = fallback_model
+                if status_slot is not None:
+                    status_slot.warning(
+                        f"⚠️ الموديل '{requested_model}' غير متاح، "
+                        f"جاري التبديل تلقائيًا إلى '{fallback_model}'..."
+                    )
+                continue
+
+            # السيرفر مزدحم مؤقتًا -> انتظر وأعد المحاولة (exponential backoff)
+            if overloaded and attempt < max_retries:
+                wait_time = base_delay * (2 ** (attempt - 1))
+                if status_slot is not None:
+                    status_slot.info(
+                        f"⏳ الموديل مزدحم مؤقتًا من عند Google، "
+                        f"بحاول تاني بعد {wait_time} ثانية "
+                        f"(محاولة {attempt}/{max_retries})..."
+                    )
+                time.sleep(wait_time)
+                continue
+
+            # أي خطأ تاني، أو استنفدنا كل المحاولات -> ارفع الخطأ
             raise
 
-        response = client.models.generate_content(
-            model=fallback_model,
-            contents=prompt,
-        )
-
-    return getattr(response, "text", "") or ""
+    raise last_exc
 
 
 def format_context(selected_outputs):
@@ -408,11 +447,30 @@ topic = st.text_area(
     placeholder="مثال: ليه مش عارف أحافظ على عادة جديدة؟",
 )
 
-run_button = st.button(
-    "🚀 شغّل Pipeline الـ7 عقول",
-    type="primary",
-    use_container_width=True,
-)
+if "pipeline_outputs" not in st.session_state:
+    st.session_state.pipeline_outputs = {}
+if "pipeline_topic" not in st.session_state:
+    st.session_state.pipeline_topic = ""
+
+has_progress = len(st.session_state.pipeline_outputs) > 0
+run_label = "▶️ كمّل Pipeline من نفس المكان" if has_progress else "🚀 شغّل Pipeline الـ7 عقول"
+
+col_run, col_reset = st.columns([3, 1])
+with col_run:
+    run_button = st.button(run_label, type="primary", use_container_width=True)
+with col_reset:
+    reset_button = st.button("🔄 ابدأ من جديد", use_container_width=True)
+
+if reset_button:
+    st.session_state.pipeline_outputs = {}
+    st.session_state.pipeline_topic = ""
+    st.rerun()
+
+if has_progress:
+    st.caption(
+        f"📌 عندك {len(st.session_state.pipeline_outputs)} من 7 عقول محفوظة من محاولة سابقة. "
+        "دوس «كمّل» عشان يكمل من غير ما يعيد اللي خلص، أو «ابدأ من جديد» عشان يمسح كل حاجة."
+    )
 
 # ============================================================
 # التشغيل
@@ -426,10 +484,18 @@ if run_button:
         st.warning("⚠️ اكتب فكرة الفيديو أولًا.")
         st.stop()
 
+    # لو الموضوع اتغير عن آخر تشغيل، ابدأ من جديد تلقائيًا (منطقي إن التقدم القديم بقى غير مرتبط بيه)
+    if (
+        st.session_state.pipeline_topic
+        and st.session_state.pipeline_topic != topic.strip()
+    ):
+        st.session_state.pipeline_outputs = {}
+    st.session_state.pipeline_topic = topic.strip()
+
     try:
         client = genai.Client(api_key=api_key)
-        outputs = {}
-        progress = st.progress(0)
+        outputs = st.session_state.pipeline_outputs  # مرجع مباشر عشان يتحفظ أول بأول
+        progress = st.progress(len(outputs) / len(MINDS) if outputs else 0)
         status = st.empty()
 
         st.divider()
@@ -439,6 +505,15 @@ if run_button:
         )
 
         for index, mind in enumerate(MINDS):
+            mind_key = f"العقل {mind['id']}"
+
+            # لو العقل ده خلص فعلا من محاولة سابقة، متعملوش تاني - وفّر الوقت والفلوس
+            if mind_key in outputs:
+                with st.expander(f"✅ {mind['name']} (محفوظ من قبل)", expanded=False):
+                    st.markdown(outputs[mind_key])
+                progress.progress((index + 1) / len(MINDS))
+                continue
+
             status.info(
                 f"العقل {mind['id']}/7 يعمل الآن: {mind['name']}"
             )
@@ -452,13 +527,14 @@ if run_button:
                 outputs=outputs,
             )
 
-            result = ask_gemini(client, prompt, model_name)
+            result = ask_gemini(client, prompt, model_name, status_slot=status)
             if not result.strip():
                 raise RuntimeError(
                     f"العقل {mind['id']} أعاد نتيجة فارغة."
                 )
 
-            outputs[f"العقل {mind['id']}"] = result
+            outputs[mind_key] = result
+            st.session_state.pipeline_outputs = outputs  # حفظ فوري بعد كل عقل
 
             with st.expander(
                 f"🧠 {mind['name']}",
@@ -502,7 +578,12 @@ if run_button:
             )
 
     except Exception as exc:
-        st.error("❌ حدث خطأ أثناء تشغيل التطبيق:")
+        done_count = len(st.session_state.pipeline_outputs)
+        st.error(
+            f"❌ حدث خطأ أثناء تشغيل التطبيق. "
+            f"الخبر الحلو: {done_count} من 7 عقول اتحفظوا بالفعل. "
+            "دوس على «كمّل Pipeline من نفس المكان» فوق عشان يكمل من غير ما يعيد اللي خلص."
+        )
         st.exception(exc)
 
 # ============================================================
