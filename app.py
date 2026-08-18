@@ -29,7 +29,7 @@ with st.sidebar:
 
     model_name = st.text_input(
         "اسم الموديل:",
-        value="gemini-2.5-flash",
+        value="gemini-3.6-flash",
     )
 
     target_minutes = st.slider(
@@ -359,10 +359,31 @@ def trim_text(text, max_chars=14000):
 
 
 def ask_gemini(client, prompt, model):
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-    )
+    """استدعاء Gemini مع fallback تلقائي لو كان اسم النموذج غير متاح."""
+    requested_model = (model or "").strip() or "gemini-3.6-flash"
+    fallback_model = "gemini-3.6-flash"
+
+    try:
+        response = client.models.generate_content(
+            model=requested_model,
+            contents=prompt,
+        )
+    except Exception as exc:
+        error_text = str(exc)
+        unavailable = (
+            "404" in error_text
+            or "NOT_FOUND" in error_text
+            or "no longer available" in error_text
+            or "not found" in error_text.lower()
+        )
+        if not unavailable or requested_model == fallback_model:
+            raise
+
+        response = client.models.generate_content(
+            model=fallback_model,
+            contents=prompt,
+        )
+
     return getattr(response, "text", "") or ""
 
 
@@ -540,8 +561,8 @@ if run_button:
 # ============================================================
 st.divider()
 st.caption(
-    "ملاحظة: جودة الهوك تعتمد على وضوح المشكلة التي تكتبها وعلى المادة التي يعطيها عقل البحث. "
-    "لا تعتمد على الإثارة وحدها، وراجع أي ادعاء علمي قبل النشر."
+    "الموديل الافتراضي هو gemini-3.6-flash. لو كتبت اسم موديل غير متاح، "
+    "سيحاول التطبيق استخدام gemini-3.6-flash تلقائيًا. راجع أي ادعاء علمي قبل النشر."
 )
 
 # التشغيل:
