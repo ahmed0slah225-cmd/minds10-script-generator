@@ -1,11 +1,3 @@
-import sys
-import io
-import os
-
-# حل مشكلة الترميز للغة العربية
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -90,7 +82,5 @@ if st.button("🚀 توليد الاسكريبت الآن", type="primary"):
                 st.markdown(response.text)
 
         except Exception as e:
-            # تحويل النص لـ UTF-8 قبل العرض لمنع خطأ الـ Encode
-            error_message = str(e).encode('utf-8', 'ignore').decode('utf-8')
-            st.error(f"❌ حدث خطأ أثناء الاتصال أو التوليد:\n\n`{error_message}`")
+            st.error(f"❌ حدث خطأ أثناء الاتصال أو التوليد:\n\n`{str(e)}`")
             st.info("تأكد من صحة الـ API Key، ومن وجود اتصال بالإنترنت.")
