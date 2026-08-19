@@ -31,14 +31,15 @@ with st.sidebar:
         type="password",
     )
 
+    # التحديث لـ gemini-3.6-flash لتفادي خطأ 404
     model_name = st.text_input(
         "اسم الموديل",
-        value="gemini-2.5-flash",
+        value="gemini-3.6-flash",
     )
 
     fallback_model = st.text_input(
         "Fallback Model",
-        value="gemini-2.5-flash",
+        value="gemini-3.6-flash",
     )
 
     target_minutes = st.slider(
