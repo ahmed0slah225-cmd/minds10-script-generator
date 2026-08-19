@@ -71,8 +71,9 @@ if st.button("🚀 توليد الاسكريبت الآن", type="primary"):
                     top_p=0.95,
                 )
 
+                # استخدام موديل Flash المجاني والسريع لتفادي خطأ الكوتا (429)
                 response = client.models.generate_content(
-                    model="gemini-3.1-pro-preview",
+                    model="gemini-2.5-flash",
                     contents=user_prompt,
                     config=config
                 )
@@ -83,4 +84,4 @@ if st.button("🚀 توليد الاسكريبت الآن", type="primary"):
 
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء الاتصال أو التوليد:\n\n`{str(e)}`")
-            st.info("تأكد من صحة الـ API Key، ومن وجود اتصال بالإنترنت.")
+            st.info("إذا استمر الخطأ، انتظر 30 ثانية وحاول مجددًا.")
