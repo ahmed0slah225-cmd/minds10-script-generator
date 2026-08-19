@@ -34,12 +34,12 @@ with st.sidebar:
 
     model_name = st.text_input(
         "اسم الموديل",
-        value="gemini-2.5-flash",
+        value="gemini-3.6-flash",
     )
 
     fallback_model = st.text_input(
         "Fallback Model",
-        value="gemini-2.5-flash",
+        value="gemini-3.6-flash",
     )
 
     target_minutes = st.slider(
@@ -546,6 +546,18 @@ def extract_retry_delay(error_text, default_delay):
     return default_delay
 
 
+def clean_model_name(name):
+    """
+    تنظيف اسم الموديل لحذف أي بادئة زائدة
+    """
+    if not name:
+        return ""
+    name = name.strip()
+    if name.startswith("models/"):
+        name = name[len("models/"):]
+    return name
+
+
 def ask_gemini(
     client,
     prompt,
@@ -557,22 +569,17 @@ def ask_gemini(
 ):
     """
     استدعاء Gemini مع:
+    - تنظيف اسم الموديل لعدم حدوث خطأ 404.
     - إعادة محاولة عند 429 / 503.
     - احترام مدة Retry لو ظهرت داخل رسالة الخطأ.
     - Fallback لو الموديل غير موجود.
     """
 
-    current_model = (
-        requested_model.strip()
-        if requested_model and requested_model.strip()
-        else fallback_model.strip()
-    )
+    req_cleaned = clean_model_name(requested_model)
+    fall_cleaned = clean_model_name(fallback_model)
 
-    fallback = (
-        fallback_model.strip()
-        if fallback_model and fallback_model.strip()
-        else current_model
-    )
+    current_model = req_cleaned if req_cleaned else fall_cleaned
+    fallback = fall_cleaned if fall_cleaned else current_model
 
     last_exc = None
 
