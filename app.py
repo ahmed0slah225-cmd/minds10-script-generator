@@ -23,8 +23,8 @@ with st.sidebar:
     st.header("⚙️ الإعدادات")
     api_key = st.text_input("Google Gemini API Key", type="password")
     
-    # تم تغيير الموديل لـ 1.5 flash لضمان الاستقرار وتجنب خطأ 404
-    model_name = st.text_input("اسم الموديل", value="gemini-1.5-flash")
+    # التحديث إلى الموديل المعتمد gemini-3.6-flash لتفادي خطأ 404
+    model_name = st.text_input("اسم الموديل", value="gemini-3.6-flash")
     
     target_minutes = st.slider("مدة الفيديو المستهدفة (بالدقائق)", 10, 60, 30, 5)
     audience = st.text_area("الجمهور المستهدف", value="شباب مصريين، بيحبوا الزتونة، بيكرهوا الكلام الرسمي والملل.")
@@ -69,17 +69,34 @@ if "pipeline_outputs" not in st.session_state:
 
 topic = st.text_area("🎯 عنوان الفيديو أو الفكرة (مثلاً: ليه مش عارف أحافظ على عادة جديدة؟):", height=100)
 
-if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_container_width=True):
+col_run, col_reset = st.columns([3, 1])
+
+with col_run:
+    run_btn = st.button("🚀 ابدأ غرفة العمليات", type="primary", use_container_width=True)
+
+with col_reset:
+    reset_btn = st.button("🔄 ابدأ موضوع جديد", use_container_width=True)
+
+if reset_btn:
+    st.session_state.pipeline_outputs = {}
+    st.rerun()
+
+if run_btn:
     if not api_key:
         st.error("❌ دخل الـ API Key في الجنب الأول")
     elif not topic:
         st.warning("⚠️ اكتب الموضوع اللي شاغل بالك")
     else:
         try:
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=api_key.strip())
             outputs = st.session_state.pipeline_outputs
             progress = st.progress(0)
             status_text = st.empty()
+            
+            # معالجة اسم الموديل والتأكد من إزالة البادئات إن وجدت
+            selected_model = model_name.strip()
+            if selected_model.startswith("models/"):
+                selected_model = selected_model[len("models/"):]
             
             for i, mind in enumerate(MINDS):
                 mind_key = f"العقل {mind['id']}"
@@ -89,7 +106,7 @@ if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_cont
                 
                 status_text.info(f"🧠 {mind['name']} شغال دلوقت...")
                 
-                # بناء السياق مع قص النصوص الطويلة لضمان عدم التهنيج
+                # بناء السياق
                 prev_context = ""
                 for mid in ROUTES[mind['id']]:
                     prev_context += f"\n[نتائج العقل {mid}]:\n{outputs.get(f'العقل {mid}', '')[:2000]}...\n"
@@ -97,6 +114,8 @@ if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_cont
                 final_prompt = f"""
                 {GLOBAL_RULES}
                 الموضوع: {topic}
+                الجمهور المستهدف: {audience}
+                مصادر إضافية: {sources}
                 المدة المطلوبة: {target_minutes} دقيقة
                 مهمتك الحالية: {mind['description']}
                 سياق العقول السابقة:
@@ -104,7 +123,10 @@ if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_cont
                 """
                 
                 # طلب النتيجة من Gemini
-                response = client.models.generate_content(model=model_name, contents=final_prompt)
+                response = client.models.generate_content(
+                    model=selected_model, 
+                    contents=final_prompt
+                )
                 
                 if response.text:
                     outputs[mind_key] = response.text
@@ -127,9 +149,5 @@ if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_cont
             
         except Exception as e:
             st.error(f"حدث خطأ: {e}")
-            if "404" in str(e):
-                st.info("💡 جرب تغير اسم الموديل في الجنب لـ gemini-1.5-pro أو تأكد إن الـ API Key سليم.")
-
-if st.button("🔄 ابدأ موضوع جديد (مسح الذاكرة)"):
-    st.session_state.pipeline_outputs = {}
-    st.rerun()
+            if "404" in str(e) or "NOT_FOUND" in str(e):
+                st.info("💡 غير اسم الموديل في الشريط الجانبي إلى gemini-3.6-flash.")
