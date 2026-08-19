@@ -1,14 +1,31 @@
 import os
+import streamlit as st
 from google import genai
 from google.genai import types
 
-def create_script_generator():
+# 1. إعدادات الصفحة في Streamlit
+st.set_page_config(
+    page_title="مولد اسكريبتات يوتيوب العميقة",
+    page_icon="🎬",
+    layout="wide"
+)
+
+st.title("🎬 مولد اسكريبتات الفيديوهات الطويلة (أسلوب التفكيك والشرح)")
+st.write("قم بإدخال نص أو موضوع الكتاب للحصول على اسكريبت مقسم إلى فصول بأسلوب شارح ومبسط للجمهور.")
+
+# 2. إدخال الـ API Key والموضوع من الواجهة
+with st.sidebar:
+    st.header("⚙️ إعدادات الاتصال")
+    api_key_input = st.text_input("أدخل GEMINI API KEY:", type="password")
+    st.info("يمكنك الحصول على المفتاح من Google AI Studio.")
+
+topic_input = st.text_area("أدخل موضوع الفيديو أو نص/خلاصة الكتاب المراد شرحه:", height=150)
+notes_input = st.text_input("ملاحظات إضافية (أمثلة معينة، توجيهات إضافية):")
+
+def create_script_generator(api_key: str):
     """
-    إعداد وإنشاء موديل Gemini لتوليد اسكريبتات يوتيوب/فيديوهات طويلة 
-    تطابق أسلوب الشرح التفكيكي والقصصي المبسط (مثل اسكريبتات الدوبامين والقراءة والتفاهة).
+    إعداد الموديل والتعليمات البرمجية لتوليد الاسكريبت.
     """
-    
-    # 1. تعريف SYSTEM INSTRUCTION بالأسلوب والبرومت المعدل بدقة
     system_instruction = """
  أنت صانع محتوى خبير ومعدّ اسكريبتات للفيديوهات الطويلة (مثل يوتيوب).
  وظيفتك الرئيسية هي **شرح وتبسيط الأفكار المفاهيمية أو النصوص والكتب للجمهور** بأسلوب تفكيكي عميق وقريب من القلب.
@@ -22,8 +39,8 @@ def create_script_generator():
     - ابدأ بأسئلة عميقة وتساؤلات وجودية أو مقارنة بين فكرتين/روايتين تفتح "لمبات" في عقل المشاهد.
     - عبارات تواصل دافئة وشخصية (مثل: "خذها مني"، "عطني يدك وخلنا نبدا"، "جمهورنا يستاهل").
  2. **التأسيس العلمي والقصصي (الفصول الوسطى):**
-    - تبسيط الأبحاث والدراسات أو المفاهيم المعقدة (مثل الدوبامين، الوصلات العصبية، السطحية) باستخدام أمثله تشبيهية بسيطة (مثل: ميزان اللذة والالم، عضلات النادي، جنود الدماغ).
-    - استشهاد بأمثلة تاريخية، أو دول (مثل ايسلندا)، أو شخصيات (مثل ايلون ماسك، جورج اورويل، هاكسلي).
+    - تبسيط الأبحاث والدراسات أو المفاهيم المعقدة باستخدام أمثلة تشبيهية بسيطة (مثل: ميزان اللذة والالم، عضلات النادي، جنود الدماغ).
+    - استشهاد بأمثلة تاريخية، أو دول، أو شخصيات عالمية عند الحاجة.
     - فضح "كذبات الدماغ" أو المفاهيم المغلوطة السائدة.
  3. **الحلول والخطوات (الفصول الأخيرة):**
     - تقديم الحلول بالتدرج المنطقي (وليس بالحلول الجذرية العنيفة)، ومخاطبة "النفس التواقة".
@@ -36,62 +53,46 @@ def create_script_generator():
  - تقسيم الاسكريبت إجباريًا إلى **فصول مسمّاة (الفصل 1: ... ، الفصل 2: ...)**.
  """
 
-    # 2. تهيئة العميل (يتم قراءة API Key تلقائيًا من المتغير البيئي GEMINI_API_KEY)
-    client = genai.Client()
-
+    client = genai.Client(api_key=api_key)
     return client, system_instruction
 
-def generate_youtube_script(topic_or_text: str, custom_notes: str = "") -> str:
-    """
-    توليد الاسكريبت باستخدام نموذج Gemini 2.5 Pro للأفكار الطويلة والعميقة.
-    """
-    client, system_instruction = create_script_generator()
+# 3. زر التوليد وتنفيذ العملية
+if st.button("🚀 توليد الاسكريبت الآن", type="primary"):
+    if not api_key_input:
+        st.error("⚠️ يرجى إدخال الـ API Key في القائمة الجانبية أولاً!")
+    elif not topic_input.strip():
+        st.warning("⚠️ يرجى إدخال موضوع أو نص الكتاب أولاً!")
+    else:
+        try:
+            with st.spinner("جاري الاتصال بـ Gemini وتوليد الاسكريبت العميق... قد يستغرق ذلك ثواني قليلة..."):
+                client, system_instruction = create_script_generator(api_key_input)
 
-    # البرومت الموجه للموديل لبناء الاسكريبت
-    user_prompt = f"""
+                user_prompt = f"""
  المطلوب: كتابة اسكريبت فيديو طويل وشامل ومفصل بناءً على الموضوع/النص التالي:
 
  [الموضوع أو الكتاب/النص المراد شرحه]:
- {topic_or_text}
+ {topic_input}
 
- [ملاحظات إضافية من المستخدم]:
- {custom_notes}
-
- توجيهات التوليد:
- - صيغ الاسكريبت مقسمًا إلى فصول واضحة (الفصل 1، الفصل 2، إلخ).
- - اشرح النص/المفهوم للجمهور كشارح ومحلل يبسط الفكرة ويستخدم التشبيهات والأمثلة الذكية.
- - ركز على طرح الأسئلة التي تثير الفضول وتجعل المشاهد يعيد التفكير في حياته اليومية.
- - اختم بالحلول التدريجية والختام الدافئ المعتاد.
+ [ملاحظات إضافية]:
+ {notes_input}
  """
 
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.7, # درجة إبداع متوازنة لإعطاء سرد سلس وعميق
-        top_p=0.95,
-    )
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.7,
+                    top_p=0.95,
+                )
 
-    print("جاري توليد الاسكريبت العميق... برجاء الانتظار...\n")
-    
-    response = client.models.generate_content(
-        model="gemini-2.5-pro", # استخدام Pro للحصول على أفضل معالجة للسرد الطويل
-        contents=user_prompt,
-        config=config
-    )
+                response = client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=user_prompt,
+                    config=config
+                )
 
-    return response.text
+                st.success("✅ تم توليد الاسكريبت بنجاح!")
+                st.markdown("---")
+                st.markdown(response.text)
 
-# --- تجربة الكود ---
-if __name__ == "__main__":
-    # مثال لتشغيل الكود على موضوع معين
-    sample_topic = "شرح مفهوم كتاب 'التفكير السريع والبطيء' لـ دانيال كانمان، وكيف يخدعنا عقلك في اتخاذ القرارات اليومية"
-    notes = "ركز على إظهار كيف نحسب الأمور بكسل، وكيف نقع في الفخاخ الإعلانية، مع إعطاء حلول تدريجية."
-
-    # تنبيه: احرص على ضبط المتغير البيئي GEMINI_API_KEY قبل التشغيل
-    # import os; os.environ["GEMINI_API_KEY"] = "your_key_here"
-    
-    try:
-        script_output = generate_youtube_script(sample_topic, notes)
-        print("=== الاسكريبت الناتج ===\n")
-        print(script_output)
-    except Exception as e:
-        print(f"حدث خطأ أثناء التشغيل: {e}")
+        except Exception as e:
+            st.error(f"❌ حدث خطأ أثناء الاتصال أو التوليد:\n\n`{str(e)}`")
+            st.info("تأكد من صحة الـ API Key، ومن وجود اتصال بالإنترنت.")
