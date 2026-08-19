@@ -1,5 +1,14 @@
+import os
+import sys
 import time
 import re
+import unicodedata
+
+# ضمان التعامل مع العربية والنصوص الدولية بترميز UTF-8
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("LC_ALL", "C.UTF-8")
+os.environ.setdefault("LANG", "C.UTF-8")
+
 import streamlit as st
 from google import genai
 
@@ -332,6 +341,17 @@ def extract_retry_delay(error_text, default_delay):
     return default_delay
 
 
+def ensure_utf8_text(value):
+    """تحويل أي قيمة إلى نص Unicode صالح، مع استبدال البايتات غير الصالحة."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    text_value = str(value)
+    # إعادة بناء النص من UTF-8 تمنع بعض أخطاء الترميز الضمنية في المكتبات
+    return text_value.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+
+
 def ask_gemini(
     client,
     prompt,
@@ -365,12 +385,19 @@ def ask_gemini(
     for attempt in range(1, max_retries + 1):
 
         try:
+            safe_model = ensure_utf8_text(current_model).strip()
+            safe_prompt = ensure_utf8_text(prompt)
             response = client.models.generate_content(
-                model=current_model,
-                contents=prompt,
+                model=safe_model,
+                contents=[
+                    {
+                        "role": "user",
+                        "parts": [{"text": safe_prompt}],
+                    }
+                ],
             )
 
-            text = getattr(response, "text", "") or ""
+            text = ensure_utf8_text(getattr(response, "text", ""))
 
             if not text.strip():
                 raise RuntimeError("تم استلام رد فارغ من الموديل.")
