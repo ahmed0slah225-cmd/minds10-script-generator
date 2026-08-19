@@ -385,16 +385,9 @@ def ask_gemini(
     for attempt in range(1, max_retries + 1):
 
         try:
-            safe_model = ensure_utf8_text(current_model).strip()
-            safe_prompt = ensure_utf8_text(prompt)
             response = client.models.generate_content(
-                model=safe_model,
-                contents=[
-                    {
-                        "role": "user",
-                        "parts": [{"text": safe_prompt}],
-                    }
-                ],
+                model=current_model,
+                contents=prompt,
             )
 
             text = ensure_utf8_text(getattr(response, "text", ""))
