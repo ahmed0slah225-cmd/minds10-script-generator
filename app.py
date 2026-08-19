@@ -1,6 +1,6 @@
 import time
 import streamlit as st
-from google import genai
+import google.generativeai as genai  # المكتبة المستقرة
 
 # ============================================================
 # إعداد الصفحة
@@ -23,8 +23,8 @@ with st.sidebar:
     st.header("⚙️ الإعدادات")
     api_key = st.text_input("Google Gemini API Key", type="password")
     
-    # تم تغيير الموديل لـ 1.5 flash لضمان الاستقرار وتجنب خطأ 404
-    model_name = st.text_input("اسم الموديل", value="gemini-1.5-flash")
+    # القيمة الافتراضية هنا هي اللي الكود طلبها منك في رسالة الخطأ
+    model_name_input = st.text_input("اسم الموديل", value="gemini-1.5-flash")
     
     target_minutes = st.slider("مدة الفيديو المستهدفة (بالدقائق)", 10, 60, 30, 5)
     audience = st.text_area("الجمهور المستهدف", value="شباب مصريين، بيحبوا الزتونة، بيكرهوا الكلام الرسمي والملل.")
@@ -64,72 +64,4 @@ ROUTES = {1:[], 2:[1], 3:[1,2], 4:[2,3], 5:[1,2,3,4], 6:[1,2,3,5], 7:[3,4,5,6], 
 # منطق التشغيل
 # ============================================================
 
-if "pipeline_outputs" not in st.session_state:
-    st.session_state.pipeline_outputs = {}
-
-topic = st.text_area("🎯 عنوان الفيديو أو الفكرة (مثلاً: ليه مش عارف أحافظ على عادة جديدة؟):", height=100)
-
-if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_container_width=True):
-    if not api_key:
-        st.error("❌ دخل الـ API Key في الجنب الأول")
-    elif not topic:
-        st.warning("⚠️ اكتب الموضوع اللي شاغل بالك")
-    else:
-        try:
-            client = genai.Client(api_key=api_key)
-            outputs = st.session_state.pipeline_outputs
-            progress = st.progress(0)
-            status_text = st.empty()
-            
-            for i, mind in enumerate(MINDS):
-                mind_key = f"العقل {mind['id']}"
-                if mind_key in outputs:
-                    progress.progress((i+1)/len(MINDS))
-                    continue
-                
-                status_text.info(f"🧠 {mind['name']} شغال دلوقت...")
-                
-                # بناء السياق مع قص النصوص الطويلة لضمان عدم التهنيج
-                prev_context = ""
-                for mid in ROUTES[mind['id']]:
-                    prev_context += f"\n[نتائج العقل {mid}]:\n{outputs.get(f'العقل {mid}', '')[:2000]}...\n"
-                
-                final_prompt = f"""
-                {GLOBAL_RULES}
-                الموضوع: {topic}
-                المدة المطلوبة: {target_minutes} دقيقة
-                مهمتك الحالية: {mind['description']}
-                سياق العقول السابقة:
-                {prev_context}
-                """
-                
-                # طلب النتيجة من Gemini
-                response = client.models.generate_content(model=model_name, contents=final_prompt)
-                
-                if response.text:
-                    outputs[mind_key] = response.text
-                    st.session_state.pipeline_outputs = outputs
-                    if show_all_outputs:
-                        with st.expander(f"✅ {mind['name']}"):
-                            st.markdown(outputs[mind_key])
-                else:
-                    st.error(f"خطأ: الموديل مارجعش رد في {mind['name']}")
-                    break
-                    
-                progress.progress((i+1)/len(MINDS))
-            
-            if "العقل 10" in outputs:
-                status_text.success("🎉 السكريبت النهائي كمل!")
-                st.divider()
-                st.header("📜 السكريبت النهائي (جاهز للتسجيل)")
-                st.markdown(outputs["العقل 10"])
-                st.download_button("⬇️ تحميل السكريبت النهائي TXT", outputs["العقل 10"], file_name="master_script.txt")
-            
-        except Exception as e:
-            st.error(f"حدث خطأ: {e}")
-            if "404" in str(e):
-                st.info("💡 جرب تغير اسم الموديل في الجنب لـ gemini-1.5-pro أو تأكد إن الـ API Key سليم.")
-
-if st.button("🔄 ابدأ موضوع جديد (مسح الذاكرة)"):
-    st.session_state.pipeline_outputs = {}
-    st.rerun()
+if "pipe
