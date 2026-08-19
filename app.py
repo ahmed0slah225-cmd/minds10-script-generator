@@ -83,8 +83,9 @@ if st.button("🚀 توليد الاسكريبت الآن", type="primary"):
                     top_p=0.95,
                 )
 
+                # التعديل هنا: استخدام اسم الموديل المحدث
                 response = client.models.generate_content(
-                    model="gemini-2.5-pro",
+                    model="gemini-3.1-pro-preview",
                     contents=user_prompt,
                     config=config
                 )
