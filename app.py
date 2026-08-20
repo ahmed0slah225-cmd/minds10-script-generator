@@ -193,8 +193,8 @@ def format_context(selected_outputs):
     return "\n".join([f"==== {k} ====\n{trim_text(v)}\n" for k, v in selected_outputs.items()])
 
 def ask_gemini(client, prompt, mind_id, status_slot):
-    # استخدام المسار الكامل بالبادئة models/ المعتمدة في v1beta
-    current_model = "models/gemini-1.5-pro" if mind_id >= 8 else "models/gemini-1.5-flash"
+    # استخدام أسماء النماذج الحديثة المباشرة المعتمدة في المكتبة
+    current_model = "gemini-2.5-pro" if mind_id >= 8 else "gemini-2.5-flash"
     
     max_retries = 5
     for attempt in range(1, max_retries + 1):
@@ -204,7 +204,7 @@ def ask_gemini(client, prompt, mind_id, status_slot):
                 contents=prompt,
             )
             text = getattr(response, "text", "") or ""
-            if not text.strip(): raise RuntimeError("رد فارغ")
+            if not text.strip(): raise RuntimeError("رد فارغ من النموذج")
             return text
         except Exception as exc:
             error_text = str(exc).lower()
