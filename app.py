@@ -32,7 +32,7 @@ with st.sidebar:
         type="password",
     )
     
-    st.info("💡 تم ضبط النظام ليستخدم Flash السريع للعقول الأولى، ومحاولة استخدام Pro للعقول الأخيرة مع التحويل التلقائي لـ Flash إذا اكتملت الكوتا المجانية.")
+    st.info("💡 تم ضبط النظام ليستخدم gemini-3.6-flash السريع للعقول الأولى، وgemini-3.1-pro-preview العبقري للعقول الأخيرة مع تحويل تلقائي عند ضغط الكوتا.")
 
     target_minutes = st.slider(
         "مدة الفيديو المستهدفة بالدقائق",
@@ -193,9 +193,9 @@ def format_context(selected_outputs):
     return "\n".join([f"==== {k} ====\n{trim_text(v)}\n" for k, v in selected_outputs.items()])
 
 def ask_gemini(client, prompt, mind_id, status_slot):
-    # نحدد النموذج الأساسي والنموذج الاحتياطي السريع
-    primary_model = "gemini-2.5-pro" if mind_id >= 8 else "gemini-2.5-flash"
-    fallback_model = "gemini-2.5-flash"
+    # استخدام الموديلات الحديثة المطلوبة من جوجل
+    primary_model = "gemini-3.1-pro-preview" if mind_id >= 8 else "gemini-3.6-flash"
+    fallback_model = "gemini-3.6-flash"
     
     max_retries = 3
     for attempt in range(1, max_retries + 1):
@@ -210,9 +210,9 @@ def ask_gemini(client, prompt, mind_id, status_slot):
         except Exception as exc:
             error_text = str(exc).lower()
             
-            # إذا وصلنا للحد المسموح (Quota / 429) للنموذج الأول، نتحول فوراً للنموذج الاحتياطي
-            if ("429" in error_text or "quota" in error_text or "exhausted" in error_text) and primary_model != fallback_model:
-                status_slot.warning(f"⚠️ تم الوصول للحد المجاني لـ {primary_model}. التحويل تلقائياً إلى {fallback_model} لتكملة السكريبت...")
+            # التحويل التلقائي عند انتهاء الكوتا أو عدم توفر الموديل
+            if ("429" in error_text or "quota" in error_text or "exhausted" in error_text or "404" in error_text) and primary_model != fallback_model:
+                status_slot.warning(f"⚠️ يتعذر استخدام {primary_model}. جاري التحويل التلقائي إلى {fallback_model} لتكملة السكريبت...")
                 primary_model = fallback_model
                 time.sleep(2)
                 continue
