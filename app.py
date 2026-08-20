@@ -32,7 +32,7 @@ with st.sidebar:
         type="password",
     )
     
-    st.info("💡 تم ضبط النظام ليستخدم Flash السريع للعقول من 1 إلى 7، وPro العبقري للعقول 8، 9، و10 لضمان السرعة وأعلى جودة للسكريبت.")
+    st.info("💡 تم ضبط النظام ليستخدم gemini-3.6-flash السريع للعقول من 1 إلى 7، وgemini-3.1-pro-preview للعقول 8، 9، و10 لأعلى جودة.")
 
     target_minutes = st.slider(
         "مدة الفيديو المستهدفة بالدقائق",
@@ -193,8 +193,8 @@ def format_context(selected_outputs):
     return "\n".join([f"==== {k} ====\n{trim_text(v)}\n" for k, v in selected_outputs.items()])
 
 def ask_gemini(client, prompt, mind_id, status_slot):
-    # استخدام أسماء النماذج الحديثة المباشرة المعتمدة في المكتبة
-    current_model = "gemini-2.5-pro" if mind_id >= 8 else "gemini-2.5-flash"
+    # استخدام النماذج الحديثة بناءً على توجيهات الخادم
+    current_model = "gemini-3.1-pro-preview" if mind_id >= 8 else "gemini-3.6-flash"
     
     max_retries = 5
     for attempt in range(1, max_retries + 1):
