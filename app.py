@@ -1,141 +1,130 @@
-import time
 import streamlit as st
-from google import genai
-from google.genai import errors
+import google.generativeai as genai
+import time
 
 # ============================================================
-# إعداد الصفحة
+# 1. إعداد الصفحة (يجب أن يكون أول سطر كود)
 # ============================================================
+st.set_page_config(page_title="غرفة الـ 10 عقول - Script Master", layout="wide")
 
-st.set_page_config(
-    page_title="غرفة عمليات الـ 10 عقول",
-    page_icon="🎬",
-    layout="wide",
-)
+# --- منع الأخطاء الشائعة وتحسين الواجهة ---
+st.markdown("""
+    <style>
+    .stProgress > div > div > div > div { background-color: #00ff00; }
+    .main { background-color: #ffffff; }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.title("🎬 نظام الـ 10 عقول - Script Master")
-st.write("سكريبتات بشرية 100% بالعامية المصرية الصايعة، جذب كل 15 ثانية.")
+def main():
+    st.title("🎬 نظام الـ 10 عقول لصناعة المحتوى البشري")
+    st.write("الهدف: سكريبت 30 دقيقة، جذب كل 15 ثانية، لغة مصرية 'صايعة' زي اسكريبتات مشاعل وأحمد أبوزيد.")
 
-# ============================================================
-# الإعدادات في الشريط الجانبي
-# ============================================================
+    # --- القائمة الجانبية ---
+    with st.sidebar:
+        st.header("⚙️ الإعدادات التقنية")
+        api_key = st.text_input("ادخل Gemini API Key", type="password")
+        
+        # اختيار الموديل المستقر (Flash للسرعة أو Pro للدقة)
+        model_choice = st.selectbox("اختر الموديل", 
+                                  ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"])
+        
+        target_mins = st.slider("مدة الفيديو (دقائق)", 10, 60, 30)
+        
+        st.divider()
+        if st.button("🔄 مسح الذاكرة وابدأ من جديد"):
+            st.session_state.clear()
+            st.rerun()
 
-with st.sidebar:
-    st.header("⚙️ الإعدادات")
-    api_key = st.text_input("Google Gemini API Key", type="password")
-    
-    # حطينا الـ 3.6 اللي إنت عايزه كخيار أول
-    model_name_input = st.text_input("اسم الموديل", value="gemini-3.6-flash")
-    
-    target_minutes = st.slider("مدة الفيديو المستهدفة (بالدقائق)", 10, 60, 30, 5)
-    audience = st.text_area("الجمهور المستهدف", value="شباب مصريين، بيحبوا الزتونة، بيكرهوا الكلام الرسمي والملل.")
-    
-    st.divider()
-    show_all_outputs = st.checkbox("عرض مخرجات العقول بالتفصيل", value=True)
+    # --- المدخلات ---
+    topic = st.text_area("🎯 عنوان الفيديو أو الفكرة اللي في دماغك:", 
+                         placeholder="مثلاً: ليه مش عارف أحافظ على عادة جديدة؟")
 
-# ============================================================
-# الدستور والبرومبتات (تم دمج "الروح المصرية" في كل عقل)
-# ============================================================
+    # ============================================================
+    # 2. الدستور والبرومبتات الـ 10 (تم تحديثها لتطابق الاسكريبتات الـ 3)
+    # ============================================================
+    GLOBAL_RULES = """
+    أنت كاتب محتوى مصري عبقري. 
+    اللغة: عامية مصرية شيك (لغة مثقفين بيقعدوا على القهوة). 
+    الأسلوب: بشري تماماً، دافئ، وصادق. ابعد عن الفصحى تماماً وعن كليشيهات الـ AI.
+    القاعدة الذهبية: كل 15 ثانية لازم 'تخطف' المشاهد (سؤال مفاجئ، إيفيه، صدمة، قصة).
+    المهمة: بناء فيديو {mins} دقيقة بأسلوب (رحلة اكتشاف) مش محاضرة.
+    """.format(mins=target_mins)
 
-GLOBAL_RULES = """
-أنت كاتب بشري مصري 'برنس'. اللغة: عامية المثقفين المصرية. 
-ممنوع الفصحى أو كلام الـ AI الممل. 
-كل 15 ثانية لازم 'تخطف' المشاهد: سؤال، إيفيه، صدمة، قصة. 
-ادخل في الوجع النفسي للمشاهد فوراً من غير مقدمات.
-"""
+    MINDS = [
+        {"id": 1, "name": "العقل 1: المُنقب عن الزتونة", "task": "حلل علم الأعصاب وعلم النفس وطلع 'الزتونة' اللي محدش يعرفها. استخرج 5 حقائق صادمة و10 مواقف مصرية واقعية المشاهد بيعيشها."},
+        {"id": 2, "name": "العقل 2: المحلل النفسي", "task": "ادخل جوه 'وجع' المشاهد. اكتب 15 اعتراف بلسانه بالعامية (confessional storytelling) زي: 'أنا بضحك على نفسي'. خلي المشاهد يحس إنك مراقبه."},
+        {"id": 3, "name": "العقل 3: صائد الزاوية (نظام التفاهة)", "task": "أوجد زاوية 'صادمة' وغير مكررة تقلب مفهوم المشاهد. متقولش 'ازاي تنجح'، قول 'ليه النجاح فخ؟' (زي أسلوب سكريبت نظام التفاهة)."},
+        {"id": 4, "name": "العقل 4: ملك الهوك (البداية)", "task": "اكتب أقوى مقدمة 90 ثانية. ابدأ بجملة تخلي المشاهد يفرمل وهو بيقلب. لازم الهوك يكون فيه 'تحدي' لمعتقدات المشاهد القديمة."},
+        {"id": 5, "name": "العقل 5: المهندس المعماري", "task": "ابني هيكل الفيديو (8 فصول). ازرع 'قنابل فضول' (Open Loops) في آخر كل فصل عشان المشاهد ميقدرش يقفل الفيديو."},
+        {"id": 6, "name": "العقل 6: الحكواتي (ملك التشبيهات)", "task": "حول الشرح العلمي لقصص وتشبيهات من الشارع المصري (شبه الدماغ بالميكروباص، أو العادة بشاحن الموبايل)."},
+        {"id": 7, "name": "العقل 7: حارس الاستبقاء", "task": "راجع الكلام وازرع محفزات انتباه كل 15 ثانية (إيفيه ذكي، سؤال يلمس الوجع، تغيير رتم الكلام). ممنوع الملل."},
+        {"id": 8, "name": "العقل 8: الكاتب الرئيسي (المسودة)", "task": "اكتب السكريبت الكامل لـ {mins} دقيقة بالعامية المصرية. ادمج العلم بالقصص بالهوك في نسيج واحد بشري جداً.".format(mins=target_mins)},
+        {"id": 9, "name": "العقل 9: المشرط القاسي", "task": "أنت المحرر اللي بيكره الروبوتات. أي جملة ريحتها AI اقطعها. حول أي كلام رسمي لعامية مصرية 'صايعة'. احذف الحشو."},
+        {"id": 10, "name": "العقل 10: المخرج النهائي", "task": "النسخة النهائية الجاهزة للتصوير. ضيف توجيهات بصرية [بين أقواس]. الناتج لازم يكون بشري ومصري 100%."}
+    ]
 
-MINDS = [
-    {"id": 1, "name": "العقل 1: المُنقب", "description": "طلع الحقائق العلمية الصادمة (الزتونة) و10 مواقف مصرية واقعية بتلمس المشكلة دي."},
-    {"id": 2, "name": "العقل 2: المحلل النفسي", "description": "حلل وجع المشاهد واكتب اعترافات بلسانه بالعامية المصرية (كلام من القلب)."},
-    {"id": 3, "name": "العقل 3: صائد الزاوية", "description": "أوجد زاوية 'صايعة' للفيديو تقلب دماغ المشاهد. متكررش كلام غيرك."},
-    {"id": 4, "name": "العقل 4: ملك الهوك", "description": "اكتب أقوى مقدمة 90 ثانية. جملة تخلي المشاهد يفرمل وهو بيسكرول."},
-    {"id": 5, "name": "العقل 5: المهندس", "description": "ابني هيكل الفيديو (8 فصول). ازرع قنابل فضول في آخر كل فصل."},
-    {"id": 6, "name": "العقل 6: الحكواتي", "description": "حول الشرح لقصص مصرية وتشبيهات من الشارع (ميكروباص، قهوة، شاحن)."},
-    {"id": 7, "name": "العقل 7: حارس الاستبقاء", "description": "ازرع محفزات انتباه كل 15 ثانية (إيفيه، سؤال مفاجئ، تغيير رتم)."},
-    {"id": 8, "name": "العقل 8: الكاتب الرئيسي", "description": "اكتب السكريبت الكامل (30 دقيقة) بالعامية المصرية. لغة بشرية 100%."},
-    {"id": 9, "name": "العقل 9: المشرط القاسي", "description": "نقي الكلام من أي ريحة AI. اقطع الحشو وخليه 'صايع' ومصري أصلي."},
-    {"id": 10, "name": "العقل 10: المخرج النهائي", "description": "النسخة النهائية مع توجيهات بصرية [بين أقواس]. سكريبت جاهز للتصوير."},
-]
+    if "history" not in st.session_state:
+        st.session_state.history = {}
 
-ROUTES = {1:[], 2:[1], 3:[1,2], 4:[2,3], 5:[1,2,3,4], 6:[1,2,3,5], 7:[3,4,5,6], 8:[1,2,3,4,5,6,7], 9:[2,3,4,7,8], 10:[1,2,3,4,5,6,7,8,9]}
+    # --- زر التشغيل ---
+    if st.button("🚀 ابدأ غرفة العمليات", type="primary", use_container_width=True):
+        if not api_key:
+            st.error("❌ من فضلك دخل الـ API Key من القائمة الجانبية.")
+            return
+        if not topic:
+            st.warning("⚠️ دخل موضوع الفيديو الأول.")
+            return
 
-# ============================================================
-# منطق التشغيل
-# ============================================================
-
-if "pipeline_outputs" not in st.session_state:
-    st.session_state.pipeline_outputs = {}
-
-topic = st.text_area("🎯 عنوان الفيديو أو الفكرة:", placeholder="مثلاً: ليه مش عارف أحافظ على عادة جديدة؟")
-
-col_run, col_reset = st.columns([3, 1])
-with col_run: run_btn = st.button("🚀 ابدأ غرفة العمليات", type="primary", use_container_width=True)
-with col_reset: reset_btn = st.button("🔄 ابدأ موضوع جديد", use_container_width=True)
-
-if reset_btn:
-    st.session_state.pipeline_outputs = {}
-    st.rerun()
-
-if run_btn:
-    if not api_key:
-        st.error("❌ دخل الـ API Key")
-    elif not topic:
-        st.warning("⚠️ اكتب العنوان")
-    else:
         try:
-            client = genai.Client(api_key=api_key.strip())
-            outputs = st.session_state.pipeline_outputs
-            progress = st.progress(0)
-            status_text = st.empty()
+            # الإعداد الصحيح للمكتبة المستقرة
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_choice)
             
-            # معالجة اسم الموديل
-            selected_model = model_name_input.strip()
+            progress_bar = st.progress(0)
             
             for i, mind in enumerate(MINDS):
-                mind_key = f"العقل {mind['id']}"
-                if mind_key in outputs:
-                    progress.progress((i+1)/len(MINDS))
+                key = f"m{mind['id']}"
+                if key in st.session_state.history:
+                    progress_bar.progress((i+1)/len(MINDS))
                     continue
                 
-                status_text.info(f"🧠 {mind['name']} بيفكر دلوقت...")
+                with st.status(f"🧠 {mind['name']} شغال دلوقت...", expanded=True) as status:
+                    # بناء السياق (نرسل ملخصات فقط لتجنب تخطي الليميت)
+                    prev_text = ""
+                    for j in range(i):
+                        prev_text += f"\n--- مخرج {MINDS[j]['name']} ---\n{st.session_state.history.get(f'm{j+1}', '')[:1000]}...\n"
+                    
+                    full_prompt = f"""
+                    {GLOBAL_RULES}
+                    الموضوع: {topic}
+                    المهمة: {mind['task']}
+                    
+                    سياق العقول السابقة:
+                    {prev_text}
+                    """
+                    
+                    # طلب النتيجة
+                    response = model.generate_content(full_prompt)
+                    
+                    if response.text:
+                        st.session_state.history[key] = response.text
+                        st.markdown(response.text)
+                        status.update(label=f"✅ {mind['name']} خلص مهمته", state="complete")
+                    else:
+                        st.error(f"الموديل لم يستجب في مرحلة {mind['name']}")
+                        return
                 
-                # بناء السياق (قص النص لضمان عدم حدوث Error)
-                prev_context = ""
-                for mid in ROUTES[mind['id']]:
-                    prev_context += f"\n[نتائج العقل {mid}]:\n{outputs.get(f'العقل {mid}', '')[:1500]}...\n"
-                
-                final_prompt = f"""
-                {GLOBAL_RULES}
-                الموضوع: {topic}
-                الجمهور: {audience}
-                المدة: {target_minutes} دقيقة
-                مهمتك كـ ({mind['name']}): {mind['description']}
-                ---
-                سياق العقول السابقة:
-                {prev_context}
-                """
-                
-                try:
-                    # محاولة الاتصال بالموديل المختار
-                    response = client.models.generate_content(model=selected_model, contents=final_prompt)
-                except Exception:
-                    # لو فشل (404)، جرب الموديل المستقر تلقائياً
-                    status_text.warning(f"⚠️ الموديل {selected_model} غير متاح، بنجرب gemini-1.5-flash...")
-                    response = client.models.generate_content(model="gemini-1.5-flash", contents=final_prompt)
-                
-                if response.text:
-                    outputs[mind_key] = response.text
-                    st.session_state.pipeline_outputs = outputs
-                    if show_all_outputs:
-                        with st.expander(f"✅ {mind['name']}"):
-                            st.markdown(outputs[mind_key])
-                
-                progress.progress((i+1)/len(MINDS))
-            
-            if "العقل 10" in outputs:
-                status_text.success("🎉 الاسكريبت النهائي جاهز!")
-                st.markdown(outputs["العقل 10"])
-                st.download_button("⬇️ تحميل الاسكريبت", outputs["العقل 10"], file_name="final_script.txt")
+                progress_bar.progress((i+1)/len(MINDS))
+
+            st.success("🎉 السكريبت النهائي جاهز!")
+            st.divider()
+            st.header("📜 MASTER SCRIPT (النسخة النهائية)")
+            st.markdown(st.session_state.history.get("m10", ""))
+            st.download_button("⬇️ تحميل السكريبت النهائي", st.session_state.history.get("m10", ""), "final_script.txt")
             
         except Exception as e:
-            st.error(f"حدث خطأ: {e}")
+            st.error(f"⚠️ حصل خطأ تقني: {str(e)}")
+            st.info("نصيحة: تأكد من تثبيت مكتبة google-generativeai وتحديثها.")
+
+if __name__ == "__main__":
+    main()
