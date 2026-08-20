@@ -32,7 +32,7 @@ with st.sidebar:
         type="password",
     )
     
-    st.info("💡 تم ضبط النظام ليستخدم gemini-3.6-flash السريع للعقول من 1 إلى 7، وgemini-3.1-pro-preview للعقول 8، 9، و10 لأعلى جودة.")
+    st.info("💡 تم ضبط النظام ليستخدم Flash السريع للعقول الأولى، ومحاولة استخدام Pro للعقول الأخيرة مع التحويل التلقائي لـ Flash إذا اكتملت الكوتا المجانية.")
 
     target_minutes = st.slider(
         "مدة الفيديو المستهدفة بالدقائق",
@@ -193,14 +193,15 @@ def format_context(selected_outputs):
     return "\n".join([f"==== {k} ====\n{trim_text(v)}\n" for k, v in selected_outputs.items()])
 
 def ask_gemini(client, prompt, mind_id, status_slot):
-    # استخدام النماذج الحديثة بناءً على توجيهات الخادم
-    current_model = "gemini-3.1-pro-preview" if mind_id >= 8 else "gemini-3.6-flash"
+    # نحدد النموذج الأساسي والنموذج الاحتياطي السريع
+    primary_model = "gemini-2.5-pro" if mind_id >= 8 else "gemini-2.5-flash"
+    fallback_model = "gemini-2.5-flash"
     
-    max_retries = 5
+    max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
-                model=current_model,
+                model=primary_model,
                 contents=prompt,
             )
             text = getattr(response, "text", "") or ""
@@ -208,13 +209,21 @@ def ask_gemini(client, prompt, mind_id, status_slot):
             return text
         except Exception as exc:
             error_text = str(exc).lower()
-            if "429" in error_text or "quota" in error_text or "exhausted" in error_text:
-                if attempt < max_retries:
-                    wait_time = 15 * attempt
-                    status_slot.warning(f"⏳ ضغط على الخوادم (Rate Limit). ننتظر {wait_time} ثانية... (المحاولة {attempt})")
-                    time.sleep(wait_time)
-                    continue
-            raise RuntimeError(f"فشل الاتصال بـ Gemini بعد عدة محاولات: {str(exc)}")
+            
+            # إذا وصلنا للحد المسموح (Quota / 429) للنموذج الأول، نتحول فوراً للنموذج الاحتياطي
+            if ("429" in error_text or "quota" in error_text or "exhausted" in error_text) and primary_model != fallback_model:
+                status_slot.warning(f"⚠️ تم الوصول للحد المجاني لـ {primary_model}. التحويل تلقائياً إلى {fallback_model} لتكملة السكريبت...")
+                primary_model = fallback_model
+                time.sleep(2)
+                continue
+                
+            if attempt < max_retries:
+                wait_time = 10 * attempt
+                status_slot.warning(f"⏳ الانتظار {wait_time} ثواني ثم إعادة المحاولة... ({attempt}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+                
+            raise RuntimeError(f"فشل الاتصال بـ Gemini: {str(exc)}")
 
 def build_prompt(mind, topic, audience_text, source_text, target_minutes, outputs):
     selected_outputs = {f"العقل {i}": outputs[f"العقل {i}"] for i in ROUTES.get(mind["id"], []) if f"العقل {i}" in outputs}
