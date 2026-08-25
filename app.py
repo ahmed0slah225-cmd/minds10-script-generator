@@ -13,6 +13,7 @@ from datetime import datetime
 import streamlit as st
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
@@ -255,6 +256,22 @@ if generate_clicked:
             try:
                 response = generate_script(api_key, model, topic, audience, tone, notes, duration_min)
                 script_text = response.text or ""
+            except genai_errors.APIError as e:
+                if getattr(e, "code", None) == 429:
+                    st.error(
+                        "⏳ وصلت لحد الحصة المجانية (Quota) بتاعة مفتاح الـ Gemini API دلوقتي.\n\n"
+                        "**الأسباب الشائعة:** البحث التلقائي (Grounding) وسط توليد سكريبت طويل "
+                        "بياخد من الكوتة بسرعة، خصوصًا لو مفعلش عندك Billing على المشروع في "
+                        "Google AI Studio.\n\n"
+                        "**تقدر:**\n"
+                        "- تستنى وتجرب تاني بعد شوية (الكوتة اليومية بترجع تتصفر تلقائيًا).\n"
+                        "- تتابع استهلاكك من [صفحة الحصص](https://ai.dev/rate-limit).\n"
+                        "- تفعّل الفوترة (Billing) على مشروعك في Google AI Studio عشان تاخد "
+                        "حصة أكبر بكتير لو هتستخدم التطبيق بشكل مستمر."
+                    )
+                else:
+                    st.error(f"حصل خطأ من الـ API (كود {getattr(e, 'code', '؟')}): {e}")
+                script_text = ""
             except Exception as e:
                 st.error(f"حصل خطأ أثناء التوليد: {e}")
                 script_text = ""
