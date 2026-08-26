@@ -47,8 +47,29 @@ def get_api_key() -> str:
     return get_secret_api_key() or st.session_state.get("manual_api_key", "")
 
 
-def build_system_instruction() -> str:
-    return """
+def build_system_instruction(use_grounding: bool) -> str:
+    grounding_rule = (
+        """
+10. لو استخدمت بحث الإنترنت، اذكر مصدر المعلومة بشكل طبيعي جوه الكلام
+    (زي "دراسة من جامعة كذا لقت إن..." أو "موقع كذا نشر إحصائية...")
+    من غير ما تحط روابط أو أقواس مرجعية جوه النص.
+"""
+        if use_grounding
+        else """
+10. معندكش وصول لبحث حي على الإنترنت دلوقتي، فاعتمد على معرفتك العامة
+    بس متخترعش أرقام أو أسماء دراسات أو إحصائيات دقيقة وهمية - لو مش
+    متأكد من رقم بعينه، اتكلم بشكل عام (زي "دراسات كتير بتقول إن...")
+    من غير ما تنسبها لمصدر معين بالاسم.
+"""
+    )
+
+    evidence_rule = (
+        "ادعم كل فكرة بدليل أو رقم أو دراسة أو بحث حقيقي لو لقيت مصدر موثوق بالبحث على الإنترنت."
+        if use_grounding
+        else "ادعم كل فكرة بمنطق واضح وأمثلة واقعية من غير ما تدّعي أرقام أو دراسات محددة."
+    )
+
+    return f"""
 انت كاتب سكريبتات يوتيوب محترف ومتخصص في المحتوى العربي، وشغلك إنك تكتب
 سكريبتات فيديوهات طويلة (حوالي 30 دقيقة) بالعامية المصرية البسيطة والسهلة،
 موجهة لقناة اسمها Minds10.
@@ -59,10 +80,7 @@ def build_system_instruction() -> str:
    لازم يكمل، من غير مقدمات مملة زي "في الفيديو ده هنتكلم عن...".
 2. المقدمة: قصيرة، تربط الهوك بموضوع الفيديو، وتدي وعد واضح للمشاهد
    بإيه اللي هياخده لو كمّل للآخر.
-3. المحتوى الأساسي: قسّمه لأجزاء واضحة، كل جزء فيه فكرة واحدة رئيسية،
-   وادعم كل فكرة بدليل أو رقم أو دراسة أو بحث حقيقي لو لقيت مصدر موثوق
-   بالبحث على الإنترنت. لو مش لاقي رقم أو دراسة دقيقة، متخترعش أرقام
-   أو أسماء دراسات وهمية - اتكلم بشكل عام بدون ما تدّعي وجود مصدر معين.
+3. المحتوى الأساسي: قسّمه لأجزاء واضحة، كل جزء فيه فكرة واحدة رئيسية، و{evidence_rule}
 4. القصص: حط قصة حقيقية (لو لقيتها بالبحث) أو قصة تخيلية واقعية توضح
    الفكرة، بشرط تكون قصيرة ومرتبطة بموضوع الفيديو مباشرة.
 5. اللغة: عامية مصرية بسيطة جدًا، زي ما بتتكلم مع صاحبك، من غير فصحى
@@ -81,47 +99,47 @@ def build_system_instruction() -> str:
    ## [اسم الجزء الثاني]
    ... (وهكذا لكل الأجزاء)
    # الخاتمة
-10. لو استخدمت بحث الإنترنت، اذكر مصدر المعلومة بشكل طبيعي جوه الكلام
-    (زي "دراسة من جامعة كذا لقت إن..." أو "موقع كذا نشر إحصائية...")
-    من غير ما تحط روابط أو أقواس مرجعية جوه النص.
+{grounding_rule}
 """.strip()
 
 
-def build_user_prompt(topic: str, audience: str, tone: str, notes: str, duration_min: int) -> str:
+def build_user_prompt(topic: str, audience: str, tone: str, notes: str,
+                       duration_min: int, use_grounding: bool) -> str:
     target_words = int(duration_min * WORDS_PER_MINUTE)
     lines = [
         f"اكتب سكريبت فيديو يوتيوب كامل عن الموضوع ده: {topic.strip()}",
         f"مدة الفيديو المستهدفة: {duration_min} دقيقة تقريبًا، يعني السكريبت لازم يكون حوالي "
         f"{target_words} كلمة (زائد أو ناقص 10%)، من غير حشو - لو الموضوع مش هيكفي العدد ده "
-        f"بمحتوى حقيقي، وسّع بالبحث عن جوانب إضافية للموضوع بدل ما تكرر كلام.",
+        f"بمحتوى حقيقي، وسّع بمناقشة جوانب إضافية للموضوع بدل ما تكرر كلام.",
         f"نبرة الفيديو: {tone}.",
     ]
     if audience.strip():
         lines.append(f"الجمهور المستهدف: {audience.strip()}.")
     if notes.strip():
         lines.append(
-            "معلومات أو مصادر إضافية من صاحب القناة، استخدمها في السكريبت ولو محتاج "
-            f"وسّعها بالبحث: {notes.strip()}"
+            "معلومات أو مصادر إضافية من صاحب القناة، استخدمها في السكريبت في الأماكن المناسبة: "
+            f"{notes.strip()}"
         )
-    lines.append(
-        "دوّر على الإنترنت على أحدث الأدلة والأرقام والدراسات المتعلقة بالموضوع ده "
-        "قبل ما تكتب، واستخدمها في الأجزاء المناسبة بشكل طبيعي."
-    )
+    if use_grounding:
+        lines.append(
+            "دوّر على الإنترنت على أحدث الأدلة والأرقام والدراسات المتعلقة بالموضوع ده "
+            "قبل ما تكتب، واستخدمها في الأجزاء المناسبة بشكل طبيعي."
+        )
     return "\n".join(lines)
 
 
 def generate_script(api_key: str, model: str, topic: str, audience: str,
-                     tone: str, notes: str, duration_min: int):
+                     tone: str, notes: str, duration_min: int, use_grounding: bool):
     client = genai.Client(api_key=api_key)
 
-    grounding_tool = types.Tool(google_search=types.GoogleSearch())
+    tools = [types.Tool(google_search=types.GoogleSearch())] if use_grounding else None
     config = types.GenerateContentConfig(
-        system_instruction=build_system_instruction(),
-        tools=[grounding_tool],
+        system_instruction=build_system_instruction(use_grounding),
+        tools=tools,
         max_output_tokens=16000,
     )
 
-    prompt = build_user_prompt(topic, audience, tone, notes, duration_min)
+    prompt = build_user_prompt(topic, audience, tone, notes, duration_min, use_grounding)
 
     response = client.models.generate_content(
         model=model,
@@ -213,12 +231,22 @@ with st.sidebar:
 
     model = st.selectbox(
         "الموديل",
-        options=["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"],
+        options=["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"],
         index=0,
     )
 
     duration_min = st.slider("مدة الفيديو (دقايق)", min_value=10, max_value=45, value=30, step=5)
     st.caption(f"هيتكتب تقريبًا {duration_min * WORDS_PER_MINUTE:,} كلمة")
+
+    use_grounding = st.checkbox(
+        "🔎 فعّل البحث التلقائي من الإنترنت (Grounding)",
+        value=False,
+        help=(
+            "الخاصية دي محتاجة Billing مفعّل على مشروعك في Google AI Studio عشان تشتغل "
+            "بشكل موثوق، وإلا هتقابل خطأ 429 (تجاوز الحصة). لو مفعّلش Billing، سيبها مطفية "
+            "وهيكتب السكريبت من غير بحث حي بس هيفضل كويس."
+        ),
+    )
 
 st.divider()
 
@@ -254,20 +282,27 @@ if generate_clicked:
     else:
         with st.spinner("بيبحث ويكتب... الموضوع بياخد شوية وقت عشان السكريبت طويل 🎬"):
             try:
-                response = generate_script(api_key, model, topic, audience, tone, notes, duration_min)
+                response = generate_script(api_key, model, topic, audience, tone, notes, duration_min, use_grounding)
                 script_text = response.text or ""
             except genai_errors.APIError as e:
                 if getattr(e, "code", None) == 429:
                     st.error(
                         "⏳ وصلت لحد الحصة المجانية (Quota) بتاعة مفتاح الـ Gemini API دلوقتي.\n\n"
-                        "**الأسباب الشائعة:** البحث التلقائي (Grounding) وسط توليد سكريبت طويل "
-                        "بياخد من الكوتة بسرعة، خصوصًا لو مفعلش عندك Billing على المشروع في "
-                        "Google AI Studio.\n\n"
+                        "**الأسباب الشائعة:** البحث التلقائي (Grounding) محتاج Billing مفعّل "
+                        "على مشروعك في Google AI Studio عشان يشتغل بثبات، حتى لو المفتاح جديد "
+                        "أو الكوتة اليومية اترجعت اتصفرت.\n\n"
                         "**تقدر:**\n"
-                        "- تستنى وتجرب تاني بعد شوية (الكوتة اليومية بترجع تتصفر تلقائيًا).\n"
+                        "- تطفي خيار \"فعّل البحث التلقائي\" من الشريط الجانبي والسكريبت هيتكتب "
+                        "من غير مشاكل كوتة.\n"
                         "- تتابع استهلاكك من [صفحة الحصص](https://ai.dev/rate-limit).\n"
-                        "- تفعّل الفوترة (Billing) على مشروعك في Google AI Studio عشان تاخد "
-                        "حصة أكبر بكتير لو هتستخدم التطبيق بشكل مستمر."
+                        "- تفعّل الفوترة (Billing) على مشروعك في Google AI Studio لو عايز "
+                        "البحث التلقائي يشتغل بشكل ثابت."
+                    )
+                elif getattr(e, "code", None) == 404:
+                    st.error(
+                        "🚫 النموذج ده مش متاح للمفتاح بتاعك (اتوقف أو مش موجود لحسابات جديدة).\n\n"
+                        "اختار موديل تاني من قايمة \"الموديل\" في الشريط الجانبي "
+                        "(زي gemini-3.7-flash أو gemini-3.6-flash) وجرب تاني."
                     )
                 else:
                     st.error(f"حصل خطأ من الـ API (كود {getattr(e, 'code', '؟')}): {e}")
