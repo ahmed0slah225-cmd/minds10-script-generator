@@ -8,6 +8,7 @@ Minds10 Script Generator
 
 import io
 import re
+import time
 from datetime import datetime
 
 import streamlit as st
@@ -141,12 +142,22 @@ def generate_script(api_key: str, model: str, topic: str, audience: str,
 
     prompt = build_user_prompt(topic, audience, tone, notes, duration_min, use_grounding)
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=config,
-    )
-    return response
+    max_attempts = 3
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
+        except genai_errors.ServerError as e:
+            last_error = e
+            if getattr(e, "code", None) == 503 and attempt < max_attempts:
+                time.sleep(5 * attempt)  # 5 ثواني، بعدين 10
+                continue
+            raise
+    raise last_error
 
 
 def extract_sources(response):
@@ -284,6 +295,16 @@ if generate_clicked:
             try:
                 response = generate_script(api_key, model, topic, audience, tone, notes, duration_min, use_grounding)
                 script_text = response.text or ""
+            except genai_errors.ServerError as e:
+                if getattr(e, "code", None) == 503:
+                    st.error(
+                        "🔧 سيرفرات Gemini مزنوقة مؤقتًا بسبب ضغط استخدام كبير (مش مشكلة "
+                        "من عندك خالص). جرب تاني بعد شوية، أو غيّر الموديل من الشريط الجانبي "
+                        "لموديل تاني زي gemini-3.6-flash."
+                    )
+                else:
+                    st.error(f"حصل خطأ من سيرفر الـ API (كود {getattr(e, 'code', '؟')}): {e}")
+                script_text = ""
             except genai_errors.APIError as e:
                 if getattr(e, "code", None) == 429:
                     st.error(
