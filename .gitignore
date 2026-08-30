@@ -1,0 +1,23 @@
+# مفاتيح ومعلومات حساسة - أهم سطر في الملف ده
+.streamlit/secrets.toml
+
+# بيئات Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# ملفات نظام
+.DS_Store
+Thumbs.db
+
+# ملفات IDE
+.vscode/
+.idea/
+
+# ملفات مؤقتة/إخراج
+*.log
+*.tmp
+output/
