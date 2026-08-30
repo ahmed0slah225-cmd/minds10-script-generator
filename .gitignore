@@ -1,8 +1,0 @@
-# متسبش المفتاح الحقيقي يتصعد على GitHub
-.streamlit/secrets.toml
-
-__pycache__/
-*.pyc
-.venv/
-venv/
-.DS_Store
