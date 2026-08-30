@@ -1,5 +1,0 @@
-streamlit>=1.37
-google-genai>=1.0.0
-python-docx>=1.1.0
-ddgs>=9.0.0
-libsql-client>=0.3.1
