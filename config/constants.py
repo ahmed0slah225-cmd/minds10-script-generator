@@ -1,0 +1,11 @@
+APP_NAME='Minds10 Content Intelligence'
+APP_VERSION='3.0.0'
+PROJECT_SLUG='minds10-script-generator'
+DEFAULT_MODEL='gemini-3.7-flash'
+DEFAULT_TEMPERATURE=0.75
+DEFAULT_MAX_TOKENS=16000
+DEFAULT_WPM=145
+MAX_CONTEXT_CHARS=80000
+SUPPORTED_FILE_TYPES=['pdf','txt','md']
+TASK_TYPES=['explain_document','summarize_document','extract_ideas','research_topic','build_video','write_script','improve_script','write_hook','analyze_text']
+STAGES=['input','document','research','knowledge','strategy','hooks','script','humanize','review','final','production']
