@@ -1,6 +1,0 @@
-streamlit==1.63.0
-PyPDF2==3.0.1
-python-docx==1.2.0
-google-genai==1.75.0
-pydantic>=2.8,<3
-requests==2.34.2
