@@ -1,4 +1,0 @@
-[
-  "tests/test_documents.py::test_page_range",
-  "tests/test_imports.py::test_core_imports"
-]
