@@ -1,6 +1,0 @@
-streamlit>=1.38
-google-generativeai>=0.8.0
-pypdf>=4.2.0
-python-dotenv>=1.0.1
-# اختياري — لازم بس لو هتستخدم Turso بدل SQLite المحلي:
-# libsql-experimental>=0.0.41
