@@ -49,7 +49,7 @@ MAX_PDF_PAGES_PER_REQUEST = 40  # أقصى عدد صفحات تُستخرج في
 # https://ai.google.dev/gemini-api/docs/models
 # قبل ما تعتمد على الاسم ده، وغيّره وقتها بمتغير بيئة GEMINI_MODEL_NAME
 # من غير ما تلمس الكود.
-GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-3.6-flash")
 GEMINI_TEMPERATURE_DEFAULT = 0.5
 
 # ---------------------------------------------------------------------------
