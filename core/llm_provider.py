@@ -29,26 +29,25 @@ class GeminiProvider(LLMProvider):
             raise RuntimeError('google-genai package is required for GeminiProvider.') from exc
 
     @staticmethod
-    def _is_429(exc: Exception) -> bool:
-        return (
-            getattr(exc,'code',None) == 429
-            or getattr(exc,'status_code',None) == 429
-            or 'RESOURCE_EXHAUSTED' in str(exc)
-            or 'quota' in str(exc).lower()
-        )
+    def _status(exc: Exception) -> int | None:
+        return getattr(exc, 'code', None) or getattr(exc, 'status_code', None)
+
+    @classmethod
+    def _is_retryable_service_error(cls, exc: Exception) -> bool:
+        status = cls._status(exc)
+        text = str(exc).upper()
+        return status in (429, 500, 502, 503, 504) or any(x in text for x in ('RESOURCE_EXHAUSTED', 'UNAVAILABLE', 'DEADLINE_EXCEEDED'))
 
     @staticmethod
     def _is_daily_quota_error(exc: Exception) -> bool:
-        text=str(exc).lower()
+        text=str(exc).lower().replace('_',' ')
         return (
-            'generate_requestsperdayperprojectpermodelfreetier' in text.replace('_','')
-            or 'generaterequestsperdayperprojectpermodelfreetier' in text.replace('_','')
-            or 'requests per day' in text
-            or 'generate_content_free_tier_requests' in text
+            'generate content free tier requests' in text
+            or 'requests per day per project per model' in text
+            or 'quota exceeded for metric' in text and 'free tier' in text
         )
 
     def generate(self, prompt: str, *, model_label: str, system: str = '', web_search: bool = False, temperature: float = 0.7, json_mode: bool = False) -> LLMResult:
-        selected=get_model(model_label)
         run_id=str(uuid.uuid4())
         cfg={'temperature':temperature}
         if system: cfg['system_instruction']=system
@@ -65,46 +64,40 @@ class GeminiProvider(LLMProvider):
         started=time.perf_counter()
         tried=[]
         candidates=[model_label] + [label for label in FALLBACK_MODEL_LABELS if label != model_label]
-        last_error: Exception | None = None
 
+        # Try each registered model once. The Google SDK already performs its own
+        # low-level retries; this layer handles model failover for service/quota errors.
         for label in candidates:
             spec=get_model(label)
             try:
                 response=call(spec.model_id)
-                return LLMResult(
-                    response.text or '',
-                    spec.model_id,
-                    run_id,
-                    int((time.perf_counter()-started)*1000),
-                    response,
-                )
+                return LLMResult(response.text or '',spec.model_id,run_id,int((time.perf_counter()-started)*1000),response)
             except Exception as exc:
-                last_error=exc
-                tried.append(f'{label}: {exc}')
-                if not self._is_429(exc):
+                tried.append((label, exc))
+                if not self._is_retryable_service_error(exc):
                     raise
-                # A daily project/model quota cannot be fixed by retrying the same model.
-                # Move to the next registered model instead.
-                if self._is_daily_quota_error(exc):
-                    continue
-                # Other 429s may be transient; let the SDK's own retry handling deal with them.
-                # If it still fails, continue to the next model.
                 continue
 
-        if last_error is not None and self._is_429(last_error):
-            if self._is_daily_quota_error(last_error):
-                raise RuntimeError(
-                    'Gemini API quota اليومية انتهت للمشروع/الموديلات المتاحة حاليًا. '
-                    'المشروع لم يعد يرسل محاولات إضافية لنفس الحصة. '
-                    'فعّل Billing في Google AI Studio لرفع حدود الاستخدام، أو انتظر إعادة ضبط RPD. '
-                    'الموديلات التي جرت محاولتها: ' + ' | '.join(x.split(':',1)[0] for x in tried)
-                ) from last_error
+        daily_errors=[exc for _,exc in tried if self._is_daily_quota_error(exc)]
+        service_errors=[exc for _,exc in tried if not self._is_daily_quota_error(exc)]
+
+        if daily_errors:
+            models=', '.join(label for label,_ in tried)
             raise RuntimeError(
-                'Gemini API أعاد 429 بعد تجربة الموديلات المتاحة. '
-                'تحقق من الـRPM/TPM أو حدود المشروع ثم أعد المحاولة.'
-            ) from last_error
-        if last_error is not None:
-            raise last_error
+                'Gemini API quota اليومية انتهت للمشروع/الموديلات المتاحة حاليًا. '
+                'كل مرحلة في الـPipeline ما زالت تعمل بشكل مستقل، لكن Google رفضت الطلبات بسبب حدود الاستخدام. '
+                'فعّل Billing أو انتظر إعادة ضبط الـRPD. '
+                f'الموديلات التي تمت تجربتها: {models}'
+            ) from daily_errors[-1]
+
+        if service_errors:
+            models=', '.join(label for label,_ in tried)
+            raise RuntimeError(
+                'Gemini API غير متاح حاليًا أو تحت ضغط مرتفع. '
+                'تمت تجربة كل الموديلات المسجلة بدون تغيير الـPipeline. '
+                f'الموديلات التي تمت تجربتها: {models}. حاول تشغيل المرحلة مرة أخرى.'
+            ) from service_errors[-1]
+
         raise RuntimeError('GeminiProvider failed without a response.')
 
 def parse_json(text: str) -> dict:
