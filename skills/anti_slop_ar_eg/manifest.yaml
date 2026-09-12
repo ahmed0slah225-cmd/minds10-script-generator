@@ -1,0 +1,25 @@
+name: anti_slop_ar_eg
+version: 1.0.0
+kind: review
+stage: post_write
+
+purpose: >
+  اكتشاف علامات "AI Slop" في النص العربي المصري (حشو، عموميات، كلام رسمي
+  زائد، انتقالات جاهزة، تكرار) — واقتراح إصلاحات، وليس تطبيقها مباشرة.
+
+depends_on: []
+conflicts_with: []
+require_llm: false
+deterministic_validation: true
+
+scope_in:
+  - يحلل النص المكتوب فقط
+scope_out:
+  - لا يكتب أو يعيد صياغة النص مباشرة (هذا عمل المحرر بعد اعتماد الإصلاحات)
+  - لا يحذف أدلة أو أمثلة مهمة (أولوية القواعد: الحقيقة > الوضوح > طلاء النمط)
+
+required_inputs:
+  - draft_script
+
+produced_outputs:
+  - anti_slop_report
