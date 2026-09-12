@@ -15,16 +15,17 @@ class KnowledgeEngine(LLMEngine):
 ideas, facts, claims, evidence, stories, examples, numbers, quotes,
 contradictions, uncertainty.
 
-لكل عنصر استخدم provenance, source_ids, confidence, verified.
+لكل عنصر استخدم الحقول:
+kind, text, provenance, source_ids, confidence, verified.
 model_inference ليس fact.
 
 مهم جدًا: يجب أن يكون الخرج JSON object بهذا الشكل الحرفي:
 {
   "items": [
     {
-      "type": "fact|claim|idea|evidence|story|example|number|quote|contradiction|uncertainty",
-      "content": "...",
-      "provenance": "user_material|web_source|model_inference",
+      "kind": "fact|claim|idea|evidence|story|example|number|quote|contradiction|uncertainty",
+      "text": "...",
+      "provenance": "user_provided|web_research|model_inference|unverified",
       "source_ids": [],
       "confidence": 0.0,
       "verified": false
@@ -32,12 +33,14 @@ model_inference ليس fact.
   ]
 }
 
-ممنوع إرجاع Array مباشرة على المستوى الأعلى. لا تكتب أي نص خارج JSON.
+ممنوع إرجاع Array مباشرة على المستوى الأعلى. لا تستخدم type بدل kind ولا content بدل text. لا تكتب أي نص خارج JSON.
 '''
 
     def apply(self, ctx, d):
         items = []
         for x in d.get('items', []):
+            if not isinstance(x, dict):
+                continue
             x = dict(x)
             x.setdefault('id', 'k-' + uuid.uuid4().hex[:8])
             x.setdefault('provenance', 'model_inference')
