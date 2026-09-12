@@ -5,7 +5,7 @@ class ReviewEngine(LLMEngine):
     name='anti_slop_review'; skill='anti_slop_ar_eg'; temperature=.4
 
     def task(self,ctx):
-        return '''راجع المسودة فقط ولا تعِد كتابتها. قيّم naturalness, information_density, clarity, language_strength, ai_feel من 1-10. اكتشف filler, genericity, fake depth, repetition, canned transitions, excess formality, mechanical phrasing, significance inflation. لكل issue: location, problem, reason, suggested_fix, severity, priority. مهم جدًا: priority يجب أن تكون رقمًا صحيحًا من 1 إلى 5، حيث 1 أعلى أولوية و5 أقل أولوية. لا تكتب high/medium/low داخل priority. Minimum Effective Editing.'''
+        return '''راجع المسودة فقط ولا تعِد كتابتها. قيّم naturalness, information_density, clarity, language_strength, ai_feel من 1-10. اكتشف filler, genericity, fake depth, repetition, canned transitions, excess formality, mechanical phrasing, significance inflation. لكل issue: dimension, location, problem, reason, suggested_fix, severity, priority. مهم جدًا: priority يجب أن تكون رقمًا صحيحًا من 1 إلى 5، حيث 1 أعلى أولوية و5 أقل أولوية. لا تكتب high/medium/low داخل priority. أعد JSON object يحتوي issues وscores وpassed وsummary. Minimum Effective Editing.'''
 
     def apply(self,ctx,d):
         issues=[]
