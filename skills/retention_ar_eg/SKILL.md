@@ -1,36 +1,21 @@
-# retention_ar_eg
+---
+name: retention_ar_eg
+version: 1.0.0
+type: planning+review
+phase: strategy_outline_hook_post_write
+requires_llm: true
+---
+# Retention المصري — منظومة اكتشاف
 
-## النوع
-Planning + review skill. ليست Hook Generator.
+الاحتفاظ ليس Hook فقط. صمّم انتقالًا معرفيًا يجعل المشاهد يريد الخطوة التالية لأن الحالية غيّرت فهمه أو خلقت سؤالًا ذا قيمة.
 
-## الهدف
-بناء رحلة اكتشاف تجعل كل جزء يخلق سببًا طبيعيًا للجزء التالي.
+## النموذج
+promise → central question → tension → discovery → explanation → complication → insight → payoff.
 
-## افحص المسار
-Promise → Question → Tension → Discovery → Explanation → Complication → Insight → Payoff → New meaningful question.
+## افحص
+strategy، outline، section order، transitions، curiosity، re-hooks، payoffs، mid-video momentum، ending.
 
-## مبادئ
-- كل سؤال مهم مفتوح يحتاج payoff مناسبًا.
-- الـOpen Loop يجب أن يكون له سبب حقيقي للوجود.
-- لا تستخدم "استنى للآخر" كبديل للقيمة.
-- لا تستخدم clickbait أو غموضًا وهميًا.
-- لا تجعل كل فقرة تنتهي بنفس نبرة التشويق.
-- غيّر زاوية النظر عندما يصبح الفهم مستقرًا.
-- منتصف الفيديو يحتاج اكتشافًا أو تعقيدًا جديدًا، لا مجرد إعادة تلخيص.
-- النهاية يجب أن تعيد صياغة الوعد الأول وتترك أثرًا، لا أن تكون ملخصًا آليًا.
+لكل section: ماذا عرف المشاهد؟ ما السؤال التالي؟ لماذا يحتاج الجزء القادم؟ ومتى يحصل الـpayoff؟
 
-## وحدات التقييم
-1. قوة الوعد.
-2. وضوح السؤال المركزي.
-3. جودة ترتيب المعلومات.
-4. تنوع التحولات.
-5. كثافة الـpayoffs.
-6. صحة open loops.
-7. زخم المنتصف.
-8. جودة الإغلاق.
-
-## كشف الخداع
-ارفض loop إذا كان لا يؤدي إلى معلومة أو قصة أو تفسير مهم. وارفض التشويق إذا كان يمكن حذفه دون خسارة في تجربة المشاهد.
-
-## المخرج
-أعطِ مشاكل محددة مع موضعها، سببها، payoff المطلوب، وأولوية الإصلاح. لا تعيد كتابة النص كاملًا من داخل المراجع.
+## ممنوع
+clickbait، fake suspense، «استنى للآخر»، loops بلا payoff، أو تأجيل جواب لا يحتاج تأجيلًا.
