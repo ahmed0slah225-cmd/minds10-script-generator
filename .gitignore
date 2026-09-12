@@ -1,8 +1,0 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-db/minds10.db
-.streamlit/secrets.toml
-*.pdf
-.DS_Store
