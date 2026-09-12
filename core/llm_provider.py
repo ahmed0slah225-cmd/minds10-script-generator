@@ -33,8 +33,34 @@ class GeminiProvider(LLMProvider):
         if system: cfg['system_instruction']=system
         if web_search: cfg['tools']=[self._types.Tool(google_search=self._types.GoogleSearch())]
         if json_mode: cfg['response_mime_type']='application/json'
+
+        def call(model_id: str):
+            return self.client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=self._types.GenerateContentConfig(**cfg),
+            )
+
         started=time.perf_counter()
-        response=self.client.models.generate_content(model=spec.model_id,contents=prompt,config=self._types.GenerateContentConfig(**cfg))
+        try:
+            response=call(spec.model_id)
+        except Exception as exc:
+            # Free-tier quota can be exhausted for one model while another available
+            # model in the registry still has capacity. Try exactly one controlled fallback.
+            is_quota_error=getattr(exc,'code',None)==429 or getattr(exc,'status_code',None)==429 or 'RESOURCE_EXHAUSTED' in str(exc) or 'quota' in str(exc).lower()
+            fallback_label='Gemini 3.7 Flash'
+            if is_quota_error and model_label != fallback_label:
+                fallback=get_model(fallback_label)
+                try:
+                    response=call(fallback.model_id)
+                    return LLMResult(response.text or '',fallback.model_id,run_id,int((time.perf_counter()-started)*1000),response)
+                except Exception as fallback_exc:
+                    raise RuntimeError(
+                        'Gemini quota exhausted for the selected model, and the fallback model was also unavailable. '
+                        'Reduce request usage or wait for the quota reset. '\
+                        f'Original error: {exc}'
+                    ) from fallback_exc
+            raise
         return LLMResult(response.text or '',spec.model_id,run_id,int((time.perf_counter()-started)*1000),response)
 
 def parse_json(text: str) -> dict:
