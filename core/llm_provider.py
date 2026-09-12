@@ -49,14 +49,23 @@ class GeminiProvider(LLMProvider):
 
     def generate(self, prompt: str, *, model_label: str, system: str = '', web_search: bool = False, temperature: float = 0.7, json_mode: bool = False) -> LLMResult:
         run_id=str(uuid.uuid4())
-        cfg={'temperature':temperature}
-        if system: cfg['system_instruction']=system
-        if web_search: cfg['tools']=[self._types.Tool(google_search=self._types.GoogleSearch())]
-        if json_mode: cfg['response_mime_type']='application/json'
 
-        def call(model_id: str):
+        def call(spec):
+            cfg={}
+            if system:
+                cfg['system_instruction']=system
+            if web_search:
+                cfg['tools']=[self._types.Tool(google_search=self._types.GoogleSearch())]
+            if json_mode:
+                cfg['response_mime_type']='application/json'
+
+            # Gemini 3.x no longer accepts the legacy sampling temperature.
+            # Keep the public engine API unchanged, but omit it at the provider boundary.
+            if not spec.model_id.startswith('gemini-3.'):
+                cfg['temperature']=temperature
+
             return self.client.models.generate_content(
-                model=model_id,
+                model=spec.model_id,
                 contents=prompt,
                 config=self._types.GenerateContentConfig(**cfg),
             )
@@ -70,7 +79,7 @@ class GeminiProvider(LLMProvider):
         for label in candidates:
             spec=get_model(label)
             try:
-                response=call(spec.model_id)
+                response=call(spec)
                 return LLMResult(response.text or '',spec.model_id,run_id,int((time.perf_counter()-started)*1000),response)
             except Exception as exc:
                 tried.append((label, exc))
@@ -100,8 +109,10 @@ class GeminiProvider(LLMProvider):
 
         raise RuntimeError('GeminiProvider failed without a response.')
 
-def parse_json(text: str) -> dict:
+def parse_json(text: str) -> Any:
     text=text.strip()
     if text.startswith('```'):
-        text=text.split('\n',1)[1].rsplit('```',1)[0]
+        parts=text.split('\n',1)
+        if len(parts) == 2:
+            text=parts[1].rsplit('```',1)[0]
     return json.loads(text)
