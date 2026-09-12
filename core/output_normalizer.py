@@ -22,6 +22,12 @@ LIST_FIELDS = {
     'numbers', 'quotes', 'contradictions', 'uncertainty',
 }
 
+# These collection fields are consumed as objects by downstream code.
+# Non-object members are dropped instead of causing a secondary AttributeError.
+OBJECT_LIST_FIELDS = {
+    'items', 'hooks', 'issues', 'outline', 'sources', 'findings',
+}
+
 # Common envelope keys sometimes added by structured-output models.
 ENVELOPE_KEYS = ('data', 'output', 'result')
 
@@ -95,6 +101,8 @@ def _normalize_collection_items(engine_name: str, field_name: str, items: list[A
 
     for item in items:
         if not isinstance(item, dict):
+            if field_name in OBJECT_LIST_FIELDS:
+                continue
             normalized_items.append(item)
             continue
 
