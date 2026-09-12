@@ -26,15 +26,13 @@ LIST_FIELDS = {
 ENVELOPE_KEYS = ('data', 'output', 'result')
 
 # Safe semantic aliases for fields whose names commonly vary between
-# natural-language instructions and the Pydantic/domain model.
-# Keep these explicit by engine so we do not silently change unrelated data.
+# natural-language instructions and the domain models.
 FIELD_ALIASES = {
     'knowledge': {
         'items': {
             'type': 'kind',
             'content': 'text',
             'text_content': 'text',
-            'source_ids': 'source_ids',
         },
     },
     'hook': {
@@ -43,16 +41,58 @@ FIELD_ALIASES = {
             'hook': 'text',
         },
     },
+    'anti_slop_review': {
+        'issues': {
+            'category': 'dimension',
+            'dimension_name': 'dimension',
+            'description': 'problem',
+            'why': 'reason',
+            'fix': 'suggested_fix',
+        },
+    },
+}
+
+# Small, safe defaults for domain fields that are often omitted by models.
+ITEM_DEFAULTS = {
+    'knowledge': {
+        'items': {
+            'kind': 'claim',
+            'text': '',
+            'provenance': 'model_inference',
+            'source_ids': [],
+            'confidence': 0.0,
+            'verified': False,
+        },
+    },
+    'anti_slop_review': {
+        'issues': {
+            'dimension': 'general',
+            'problem': '',
+            'reason': '',
+            'suggested_fix': '',
+            'priority': 3,
+        },
+    },
+}
+
+PROVENANCE_ALIASES = {
+    'user_material': 'user_provided',
+    'user_source': 'user_provided',
+    'user_file': 'user_file',
+    'web_source': 'web_research',
+    'web': 'web_research',
+    'research': 'web_research',
+    'model': 'model_inference',
+    'inference': 'model_inference',
+    'unknown': 'unverified',
 }
 
 
 def _normalize_collection_items(engine_name: str, field_name: str, items: list[Any]) -> list[Any]:
-    """Normalize object keys inside a known collection without guessing broadly."""
     aliases = FIELD_ALIASES.get(engine_name, {}).get(field_name, {})
-    if not aliases:
-        return items
-
+    defaults = ITEM_DEFAULTS.get(engine_name, {}).get(field_name, {})
     normalized_items: list[Any] = []
+
     for item in items:
         if not isinstance(item, dict):
             normalized_items.append(item)
@@ -62,6 +102,15 @@ def _normalize_collection_items(engine_name: str, field_name: str, items: list[A
         for source_key, target_key in aliases.items():
             if target_key not in obj and source_key in obj:
                 obj[target_key] = obj[source_key]
+
+        for key, value in defaults.items():
+            obj.setdefault(key, value.copy() if isinstance(value, list) else value)
+
+        if engine_name == 'knowledge' and field_name == 'items':
+            provenance = obj.get('provenance')
+            if isinstance(provenance, str):
+                obj['provenance'] = PROVENANCE_ALIASES.get(provenance.strip().lower(), provenance)
+
         normalized_items.append(obj)
 
     return normalized_items
@@ -72,8 +121,8 @@ def normalize_structured_output(engine_name: str, data: Any) -> dict[str, Any]:
     if isinstance(data, dict):
         normalized = dict(data)
 
-        # Unwrap a pure envelope such as {"data": {...}} without guessing
-        # when the object contains any other meaningful sibling fields.
+        # Unwrap a pure envelope such as {"data": {...}} only when it is
+        # the sole top-level key, so meaningful sibling fields are preserved.
         if len(normalized) == 1:
             envelope_key = next((k for k in ENVELOPE_KEYS if k in normalized), None)
             if envelope_key and isinstance(normalized[envelope_key], dict):
@@ -93,9 +142,7 @@ def normalize_structured_output(engine_name: str, data: Any) -> dict[str, Any]:
     if isinstance(data, list):
         wrapper = TOP_LEVEL_LIST_WRAPPERS.get(engine_name)
         if wrapper:
-            return {
-                wrapper: _normalize_collection_items(engine_name, wrapper, data)
-            }
+            return {wrapper: _normalize_collection_items(engine_name, wrapper, data)}
         raise StructuredOutputError(
             f"{engine_name}: Gemini رجّع JSON Array، لكن المرحلة تحتاج JSON Object. "
             f"المتوقع كائن JSON وليس قائمة. راجع صيغة خرج هذه المرحلة."
