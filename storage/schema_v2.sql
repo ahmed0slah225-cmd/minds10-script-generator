@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS projects (project_id TEXT PRIMARY KEY, version INTEGER, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, project_id TEXT, data TEXT NOT NULL);
