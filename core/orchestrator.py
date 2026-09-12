@@ -36,8 +36,13 @@ class Orchestrator:
                 elapsed=int((time.perf_counter()-started)*1000); ctx.record(name,status='ok',elapsed_ms=elapsed)
                 if self.store: self.store.save_run(run_id,ctx.state.project_id,RunLog(run_id,ctx.state.project_id,name,name,getattr(stage,'skill',None),ctx.settings.model_label,ts,elapsed,'ok',input_chars=len(ctx.state.input_text),output_chars=len(ctx.state.draft or ctx.state.final_script)).as_dict())
             except Exception as exc:
-                ctx.record(name,status='error',error=str(exc));
-                if self.store: self.store.save_run(run_id,ctx.state.project_id,name,{'status':'error','stage':name,'error':str(exc)})
+                ctx.record(name,status='error',error=str(exc))
+                if self.store:
+                    self.store.save_run(
+                        run_id,
+                        ctx.state.project_id,
+                        {'status':'error','stage':name,'error':str(exc)}
+                    )
                 raise
         ctx.state.metadata['trace']=ctx.trace
         ok,errors=final_gate(ctx.state); ctx.state.metadata['final_gate']={'passed':ok,'errors':errors}
