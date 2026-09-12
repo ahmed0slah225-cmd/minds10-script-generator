@@ -1,0 +1,32 @@
+name: humanize_ar_eg
+version: 1.0.0
+kind: rewrite
+stage: post_write
+
+purpose: >
+  تحسين نص موجود بالفعل (وليس كتابته من الصفر) على مستوى الجملة/الفقرة/
+  الانتقال/الإيقاع، لجعله قابلًا للنطق أمام الكاميرا بعامية مصرية طبيعية،
+  دون اختراع معلومات أو تجارب أو مصادر، ودون تغيير المعنى الواقعي.
+
+depends_on: [voice_dna_ar_eg]
+conflicts_with: []
+require_llm: true
+deterministic_validation: false
+
+scope_in:
+  - الجملة، الفقرة، الانتقالات، الإيقاع، التسليم المنطوق
+scope_out:
+  - لا يخترع معلومات
+  - لا يخترع تجارب شخصية
+  - لا يخترع مصادر
+  - لا يغيّر المعنى الواقعي
+  - لا يكتب فوق الأدلة المهمة
+  - لا يكتب السكريبت من الصفر
+
+required_inputs:
+  - draft_script
+  - voice_dna
+  - audience
+
+produced_outputs:
+  - humanized_script

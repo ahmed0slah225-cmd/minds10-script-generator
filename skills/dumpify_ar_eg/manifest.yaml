@@ -1,0 +1,27 @@
+name: dumpify_ar_eg
+version: 1.0.0
+kind: rewrite
+stage: post_write
+
+purpose: >
+  تبسيط دون تسطيح — تبسيط فكرة معقدة من غير تدمير معناها أو حذف التعقيد
+  الضروري أو تسطيح الموضوع أو جعل كل الجمل قصيرة. أداة اختيارية تُستخدم
+  عند وجود مقطع معقد جدًا على الجمهور المستهدف تحديدًا.
+
+depends_on: []
+conflicts_with: []
+require_llm: true
+deterministic_validation: false
+
+scope_in:
+  - مقطع نصي محدد يحتاج تبسيطًا
+scope_out:
+  - لا يحذف التعقيد الضروري لفهم الفكرة
+  - لا يجعل كل الجمل بنفس الطول القصير
+
+required_inputs:
+  - draft_script
+  - audience
+
+produced_outputs:
+  - simplified_text

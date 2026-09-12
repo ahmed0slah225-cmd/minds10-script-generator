@@ -1,0 +1,30 @@
+name: retention_ar_eg
+version: 1.0.0
+kind: planning
+stage: planning
+
+purpose: >
+  منظومة احتفاظ كاملة: هيكل، تحولات، إعادة خطافات، مردودات، زخم منتصف
+  الفيديو. تُستخدم في مرحلتين: التخطيط (retention_planning: تبني مسار
+  الاحتفاظ) والمراجعة (retention_review: تتحقق إن كل Open Loop اتفتح
+  فعلاً اتقفل بمردود مناسب، وبدون Clickbait أو تشويق وهمي).
+
+depends_on: []
+conflicts_with: []
+require_llm: true
+deterministic_validation: false
+
+scope_in:
+  - مسار الاحتفاظ، ترتيب الأقسام، تتبع الأسئلة المفتوحة ومردوداتها
+scope_out:
+  - لا يستخدم Clickbait أو فضول فارغ
+  - لا يترك Open Loop بدون إغلاق
+
+required_inputs:
+  - story
+  - strategy
+  - outline
+
+produced_outputs:
+  - outline
+  - review_notes
