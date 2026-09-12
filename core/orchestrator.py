@@ -6,15 +6,8 @@ from .observability import RunLog,now_iso
 from .validation import final_gate
 from .storage import ProjectStore
 from engines.input.router import route_input
-from engines.topic.engine import TopicEngine
-from engines.source.engine import SourceEngine
+from engines.planning_bundle.engine import PlanningBundleEngine
 from engines.research.engine import ResearchEngine
-from engines.knowledge.engine import KnowledgeEngine
-from engines.audience.engine import AudienceEngine
-from engines.strategy.engine import StrategyEngine
-from engines.story.engine import StoryEngine
-from engines.retention.engine import RetentionEngine
-from engines.hook.engine import HookEngine
 from engines.script.engine import ScriptEngine
 from engines.humanize.engine import HumanizeEngine
 from engines.review.engine import ReviewEngine
@@ -27,7 +20,10 @@ from engines.final_editor.engine import FinalEditorEngine
 class Orchestrator:
     def __init__(self,llm:LLMProvider,store:ProjectStore|None=None):
         self.llm=llm; self.store=store
-        self.stages=[route_input,TopicEngine(),SourceEngine(),ResearchEngine(),KnowledgeEngine(),AudienceEngine(),StrategyEngine(),StoryEngine(),RetentionEngine(),HookEngine(),ScriptEngine(),HumanizeEngine(),ReviewEngine(),RepetitionEngine(),EgyptianEngine(),VoiceEngine(),TruthEngine(),FinalEditorEngine()]
+        # The planning stages share one structured Gemini call to keep the free-tier
+        # request budget usable while preserving the original stage outputs.
+        self.stages=[route_input,PlanningBundleEngine(),ResearchEngine(),ScriptEngine(),HumanizeEngine(),ReviewEngine(),RepetitionEngine(),EgyptianEngine(),VoiceEngine(),TruthEngine(),FinalEditorEngine()]
+
     def run(self,ctx:PipelineContext,start_at:int=0):
         for stage in self.stages[start_at:]:
             name=getattr(stage,'name',getattr(stage,'__name__','stage')); run_id=str(uuid.uuid4()); started=time.perf_counter(); ts=now_iso()
@@ -38,11 +34,7 @@ class Orchestrator:
             except Exception as exc:
                 ctx.record(name,status='error',error=str(exc))
                 if self.store:
-                    self.store.save_run(
-                        run_id,
-                        ctx.state.project_id,
-                        {'status':'error','stage':name,'error':str(exc)}
-                    )
+                    self.store.save_run(run_id,ctx.state.project_id,{'status':'error','stage':name,'error':str(exc)})
                 raise
         ctx.state.metadata['trace']=ctx.trace
         ok,errors=final_gate(ctx.state); ctx.state.metadata['final_gate']={'passed':ok,'errors':errors}
