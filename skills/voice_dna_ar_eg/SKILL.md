@@ -1,35 +1,22 @@
-# voice_dna_ar_eg
+---
+name: voice_dna_ar_eg
+version: 1.0.0
+type: profile
+phase: analysis+shared_layer
+requires_llm: true
+---
+# Voice DNA
 
-## النوع
-Profile / personalization layer.
+Voice DNA Profile منظم ودائم، لا نسخة من النصوص القديمة ولا Prompt محفوظ كما هو.
 
-## الهدف
-تمثيل أسلوب الكاتب كميزات قابلة لإعادة الاستخدام، وليس نسخ نصوصه.
+## يستخرج
+sentence_length، rhythm، vocabulary، colloquial_level، question_style، viewer_address، emotion، explanation، examples، storytelling، transitions، curiosity، metaphors، endings، formality، spontaneity، forbidden_tells.
 
-## الميزات
-- متوسط ونطاق طول الجملة.
-- الإيقاع والتقطيع.
-- مستوى العامية والرسمية.
-- المفردات المتكررة المفيدة.
-- طريقة طرح الأسئلة.
-- مخاطبة المشاهد.
-- مستوى العاطفة.
-- أسلوب الشرح والأمثلة.
-- أسلوب الحكاية.
-- الانتقالات.
-- بناء الفضول.
-- التشبيهات.
-- طريقة إنهاء الفكرة.
-- التلقائية والاحتراف.
+## قواعد الاستخراج
+اعتمد السمات المتكررة عبر عدة عينات، ولا تجعل جملة واحدة قانونًا. لا تنقل عبارات مميزة حرفيًا.
 
-## قاعدة مهمة
-Voice DNA ليس Humanizer. هو قيد هوية مشترك يوجه الهوك والقصة والسكريبت والأنسنة والتحرير والمراجعة.
+## التكامل
+يُستخدم في Hook، Story، Script، Humanize، Egyptian Editor، Final Editor، وVoice Review.
 
-## عدم التجميد
-لا تحاول جعل كل نص مطابقًا لعينة قديمة. استخدم DNA كاحتمالات وميول، ثم اسمح للمحتوى الجديد بتغيير الإيقاع عندما تتطلب الفكرة ذلك.
-
-## حماية الخصوصية
-احتفظ بالميزات الأسلوبية، لا تنسخ النصوص القديمة إلى prompt دائم بلا حاجة.
-
-## مخرج مقترح
-voice_profile: structured features + confidence + sample evidence + version.
+## الثبات المرن
+يحافظ على هوية الكاتب من غير أن يجعل كل فيديو نسخة من السابق، ولا يسمح بتغيير الحقيقة أو الأدلة.
