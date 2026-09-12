@@ -1,40 +1,27 @@
-# Minds10 Architecture
+# Minds Content Intelligence Platform
 
-المشروع لا يعتمد على Prompt واحد ضخم ولا على سلسلة Agents متصلبة. التصميم المقصود:
+Minds is a production-oriented YouTube content system, not a text generator.
 
-`Input → Understanding → Knowledge → Audience → Strategy → Story → Retention → Hook → Draft → Humanize → Anti-Slop → Egyptian Edit → Truth Check → Final`
+## Runtime graph
+`Input Router → Topic Understanding → Source Analysis → Research(optional) → Knowledge → Audience → Strategy → Story → Retention → Hook → Script → Humanize → Anti-Slop Review → Repetition Review → Egyptian Editor → Voice Check → Truth Check → Final Editor`
+
+## Non-negotiable boundaries
+- Web Research is OFF by default and is a hard user-controlled gate.
+- Engines never call Gemini directly; they call `LLMProvider`.
+- Model choice comes from `model_registry`; no scattered model IDs.
+- User sources and web research remain separate provenance classes.
+- Reviewers diagnose; editors apply targeted fixes.
+- Humanize never invents facts, personal experiences, sources or evidence.
+- Truth wins over style, retention or voice.
 
 ## Engine vs Skill
-- Engine = عملية كبيرة وتنسيق السياق.
-- Skill = قدرة متخصصة يمكن أن تدخل أكثر من Engine.
-- Reviewer لا يعمل ككاتب.
-- Voice DNA ليست Humanizer.
-- Anti-Slop يشخّص أولًا ثم يرسل الإصلاحات للمحرر.
-- Retention ليست Hook Generator.
+Engine owns process, context, I/O, persistence boundary, validation and failure handling. Skill owns reusable method, rules, constraints and quality criteria.
 
-## Web boundary
-قرار البحث يعيش في project context. إذا كان OFF فلا يتم إنشاء أداة البحث أصلًا. لا Skill تستطيع تجاوزه.
+## Quality loop
+Draft → reviews → prioritized issues → smallest effective fixes → re-review → final gate.
 
-## Model boundary
-الـEngines تستدعي Provider Adapter. أسماء الموديلات موجودة في `core/model_registry.py` فقط. هذا يسمح بإضافة مزودين لاحقًا دون إعادة كتابة الـworkflow.
+## Persistence
+`ProjectStore` is the adapter boundary. Local SQLite is available; `TursoStore` uses Turso's Python libSQL client when credentials are supplied.
 
-## Source truth
-كل معلومة يجب أن تحمل provenance في طبقة Knowledge مستقبلًا:
-`user_provided | user_file | web_research | model_inference | unverified`
-
-## Review loop
-Reviewer → issues → priorities → suggested fixes → editor → recheck.
-ليس Reviewer → rewrite whole script.
-
-## Current first release
-النسخة الأولى تركز على:
-1. Streamlit UI.
-2. Gemini provider.
-3. Gemini 3.6 Flash كافتراضي.
-4. Gemini 3.7 Flash كخيار.
-5. Web Search OFF افتراضيًا ويمكن تشغيله من checkbox.
-6. Research depth control.
-7. Skill registry.
-8. Deep skill specifications.
-
-المراحل القادمة يمكن أن تفصل Engines إلى وحدات مستقلة، تضيف Knowledge Base وVoice DNA persistence وfile ingestion وstructured review artifacts دون تغيير واجهة اختيار الموديل أو سياسة البحث.
+## PDF
+PDF input is scoped by page range and becomes a user-file source. The pipeline never assumes the whole document should be processed.
