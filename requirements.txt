@@ -3,4 +3,4 @@ google-genai>=1.30,<2
 pydantic>=2.9,<3
 pypdf>=5,<7
 requests>=2.32,<3
-# Turso will be supported through its HTTP/libSQL-compatible REST adapter without a Python libsql package.
+libsql>=0.1.11,<0.2
