@@ -5,7 +5,7 @@ from .llm_provider import LLMProvider
 from .observability import RunLog,now_iso
 from .validation import final_gate
 from .storage import ProjectStore
-from engines.input.router import route_input
+from engines.input.router import input_router
 from engines.topic.engine import TopicEngine
 from engines.source.engine import SourceEngine
 from engines.research.engine import ResearchEngine
@@ -27,12 +27,12 @@ from engines.final_editor.engine import FinalEditorEngine
 class Orchestrator:
     def __init__(self,llm:LLMProvider,store:ProjectStore|None=None):
         self.llm=llm; self.store=store
-        self.stages=[route_input,TopicEngine(),SourceEngine(),ResearchEngine(),KnowledgeEngine(),AudienceEngine(),StrategyEngine(),StoryEngine(),RetentionEngine(),HookEngine(),ScriptEngine(),HumanizeEngine(),ReviewEngine(),RepetitionEngine(),EgyptianEngine(),VoiceEngine(),TruthEngine(),FinalEditorEngine()]
+        self.stages=[input_router,TopicEngine(),SourceEngine(),ResearchEngine(),KnowledgeEngine(),AudienceEngine(),StrategyEngine(),StoryEngine(),RetentionEngine(),HookEngine(),ScriptEngine(),HumanizeEngine(),ReviewEngine(),RepetitionEngine(),EgyptianEngine(),VoiceEngine(),TruthEngine(),FinalEditorEngine()]
     def run(self,ctx:PipelineContext,start_at:int=0):
         for stage in self.stages[start_at:]:
             name=getattr(stage,'name',getattr(stage,'__name__','stage')); run_id=str(uuid.uuid4()); started=time.perf_counter(); ts=now_iso()
             try:
-                stage.run(ctx,self.llm) if not (stage is route_input) else stage(ctx,self.llm)
+                stage.run(ctx,self.llm) if not (stage is input_router) else stage(ctx,self.llm)
                 elapsed=int((time.perf_counter()-started)*1000); ctx.record(name,status='ok',elapsed_ms=elapsed)
                 if self.store: self.store.save_run(run_id,ctx.state.project_id,RunLog(run_id,ctx.state.project_id,name,name,getattr(stage,'skill',None),ctx.settings.model_label,ts,elapsed,'ok',input_chars=len(ctx.state.input_text),output_chars=len(ctx.state.draft or ctx.state.final_script)).as_dict())
             except Exception as exc:
