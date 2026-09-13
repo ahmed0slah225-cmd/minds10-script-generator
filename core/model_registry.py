@@ -15,15 +15,12 @@ class ModelSpec:
     support_caching: bool = True
 
 AVAILABLE_MODELS={
-    'Gemini 3.8 Flash': ModelSpec('Gemini 3.8 Flash','gemini-3.8-flash'),
     'Gemini 3.7 Flash': ModelSpec('Gemini 3.7 Flash','gemini-3.7-flash'),
     'Gemini 3.6 Flash': ModelSpec('Gemini 3.6 Flash','gemini-3.6-flash'),
+    'Gemini 3.8 Flash': ModelSpec('Gemini 3.8 Flash','gemini-3.8-flash'),
     'Gemini 3.5 Flash': ModelSpec('Gemini 3.5 Flash','gemini-3.5-flash'),
 }
-DEFAULT_MODEL='Gemini 3.8 Flash'
-
-# Ordered from strongest/most preferred to safer alternatives when a model is unavailable.
-FALLBACK_MODEL_LABELS=('Gemini 3.8 Flash','Gemini 3.7 Flash','Gemini 3.6 Flash','Gemini 3.5 Flash')
+DEFAULT_MODEL='Gemini 3.6 Flash'
 
 def get_model(label:str)->ModelSpec:
     if label not in AVAILABLE_MODELS: raise ValueError(f'Unknown model: {label}')
@@ -31,4 +28,5 @@ def get_model(label:str)->ModelSpec:
 
 def validate_capabilities(label:str,web_search:bool)->None:
     spec=get_model(label)
-    if web_search and not spec.support_search: raise ValueError(f'{label} لا يدعم البحث المطلوب.')
+    if web_search and not spec.support_search:
+        raise ValueError(f'{label} لا يدعم البحث المطلوب. اختر موديلًا متوافقًا بدل التبديل السري.')
