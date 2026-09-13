@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, os, time, uuid
 from dataclasses import dataclass
 from typing import Any
-from .model_registry import get_model, FALLBACK_MODEL_LABELS
+from .model_registry import get_model
 
 @dataclass
 class LLMResult:
@@ -19,7 +19,8 @@ class LLMProvider:
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv('GEMINI_API_KEY','')
-        if not self.api_key: raise RuntimeError('GEMINI_API_KEY غير موجود.')
+        if not self.api_key:
+            raise RuntimeError('GEMINI_API_KEY غير موجود.')
         try:
             from google import genai
             from google.genai import types
@@ -40,79 +41,58 @@ class GeminiProvider(LLMProvider):
 
     @staticmethod
     def _is_daily_quota_error(exc: Exception) -> bool:
-        text=str(exc).lower().replace('_',' ')
+        text = str(exc).lower().replace('_',' ')
         return (
             'generate content free tier requests' in text
             or 'requests per day per project per model' in text
-            or 'quota exceeded for metric' in text and 'free tier' in text
+            or ('quota exceeded for metric' in text and 'free tier' in text)
         )
 
     def generate(self, prompt: str, *, model_label: str, system: str = '', web_search: bool = False, temperature: float = 0.7, json_mode: bool = False) -> LLMResult:
-        run_id=str(uuid.uuid4())
+        run_id = str(uuid.uuid4())
+        spec = get_model(model_label)
+        cfg = {}
+        if system:
+            cfg['system_instruction'] = system
+        if web_search:
+            if not spec.support_search:
+                raise RuntimeError(f'{model_label} لا يدعم البحث المطلوب.')
+            cfg['tools'] = [self._types.Tool(google_search=self._types.GoogleSearch())]
+        if json_mode:
+            if not spec.support_structured_output:
+                raise RuntimeError(f'{model_label} لا يدعم structured output المطلوب.')
+            cfg['response_mime_type'] = 'application/json'
 
-        def call(spec):
-            cfg={}
-            if system:
-                cfg['system_instruction']=system
-            if web_search:
-                cfg['tools']=[self._types.Tool(google_search=self._types.GoogleSearch())]
-            if json_mode:
-                cfg['response_mime_type']='application/json'
+        # Gemini 3.x uses its reasoning behavior without the legacy sampling knob used by older models.
+        if not spec.model_id.startswith('gemini-3.'):
+            cfg['temperature'] = temperature
 
-            # Gemini 3.x no longer accepts the legacy sampling temperature.
-            # Keep the public engine API unchanged, but omit it at the provider boundary.
-            if not spec.model_id.startswith('gemini-3.'):
-                cfg['temperature']=temperature
-
-            return self.client.models.generate_content(
+        started = time.perf_counter()
+        try:
+            response = self.client.models.generate_content(
                 model=spec.model_id,
                 contents=prompt,
                 config=self._types.GenerateContentConfig(**cfg),
             )
+        except Exception as exc:
+            if self._is_daily_quota_error(exc):
+                raise RuntimeError(
+                    f'حصة Gemini اليومية انتهت للموديل المختار {model_label}. '
+                    'المشروع لن يبدّل الموديل تلقائيًا. انتظر إعادة ضبط الحصة أو غيّر الموديل يدويًا.'
+                ) from exc
+            if self._is_retryable_service_error(exc):
+                raise RuntimeError(
+                    f'Gemini لم ينفذ الطلب بالموديل المختار {model_label} بسبب خطأ خدمة/اتصال قابل لإعادة المحاولة. '
+                    'لم يتم تبديل الموديل تلقائيًا.'
+                ) from exc
+            raise
 
-        started=time.perf_counter()
-        tried=[]
-        candidates=[model_label] + [label for label in FALLBACK_MODEL_LABELS if label != model_label]
-
-        # Try each registered model once. The Google SDK already performs its own
-        # low-level retries; this layer handles model failover for service/quota errors.
-        for label in candidates:
-            spec=get_model(label)
-            try:
-                response=call(spec)
-                return LLMResult(response.text or '',spec.model_id,run_id,int((time.perf_counter()-started)*1000),response)
-            except Exception as exc:
-                tried.append((label, exc))
-                if not self._is_retryable_service_error(exc):
-                    raise
-                continue
-
-        daily_errors=[exc for _,exc in tried if self._is_daily_quota_error(exc)]
-        service_errors=[exc for _,exc in tried if not self._is_daily_quota_error(exc)]
-
-        if daily_errors:
-            models=', '.join(label for label,_ in tried)
-            raise RuntimeError(
-                'Gemini API quota اليومية انتهت للمشروع/الموديلات المتاحة حاليًا. '
-                'كل مرحلة في الـPipeline ما زالت تعمل بشكل مستقل، لكن Google رفضت الطلبات بسبب حدود الاستخدام. '
-                'فعّل Billing أو انتظر إعادة ضبط الـRPD. '
-                f'الموديلات التي تمت تجربتها: {models}'
-            ) from daily_errors[-1]
-
-        if service_errors:
-            models=', '.join(label for label,_ in tried)
-            raise RuntimeError(
-                'Gemini API غير متاح حاليًا أو تحت ضغط مرتفع. '
-                'تمت تجربة كل الموديلات المسجلة بدون تغيير الـPipeline. '
-                f'الموديلات التي تمت تجربتها: {models}. حاول تشغيل المرحلة مرة أخرى.'
-            ) from service_errors[-1]
-
-        raise RuntimeError('GeminiProvider failed without a response.')
+        return LLMResult(response.text or '', spec.model_id, run_id, int((time.perf_counter() - started) * 1000), response)
 
 def parse_json(text: str) -> Any:
-    text=text.strip()
+    text = text.strip()
     if text.startswith('```'):
-        parts=text.split('\n',1)
+        parts = text.split('\n', 1)
         if len(parts) == 2:
-            text=parts[1].rsplit('```',1)[0]
+            text = parts[1].rsplit('```', 1)[0]
     return json.loads(text)
