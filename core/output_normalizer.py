@@ -13,19 +13,20 @@ TOP_LEVEL_LIST_WRAPPERS = {
     'hook': 'hooks',
     'anti_slop_review': 'issues',
     'outline': 'outline',
+    'repetition_review': 'repeated',
 }
 
 # Collection fields that sometimes arrive as one object instead of a list.
 LIST_FIELDS = {
     'items', 'hooks', 'issues', 'outline', 'sources', 'findings',
     'research_questions', 'claims', 'examples', 'stories',
-    'numbers', 'quotes', 'contradictions', 'uncertainty',
+    'numbers', 'quotes', 'contradictions', 'uncertainty', 'repeated',
 }
 
 # These collection fields are consumed as objects by downstream code.
 # Non-object members are dropped instead of causing a secondary AttributeError.
 OBJECT_LIST_FIELDS = {
-    'items', 'hooks', 'issues', 'outline', 'sources', 'findings',
+    'items', 'hooks', 'issues', 'outline', 'sources', 'findings', 'repeated',
 }
 
 # Common envelope keys sometimes added by structured-output models.
