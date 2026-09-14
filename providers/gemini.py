@@ -14,11 +14,55 @@ Gemini API فعليًا. أي Engine آخر يمر عبر providers.base.get_pro
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any
 
 from core.model_registry import get_model, require_capability
 from providers.base import GenerationRequest, GenerationResult, LLMProvider
+
+
+# لا نقلل عدد استدعاءات الـPipeline؛ فقط نعيد محاولة الاستدعاء نفسه عند
+# الأخطاء المؤقتة. في حالة 429 نلتزم بالـretryDelay الذي ترسله Google.
+MAX_TRANSIENT_RETRIES = 4
+DEFAULT_TRANSIENT_RETRY_SECONDS = 5
+
+
+def _retry_delay_from_error(exc: Exception) -> float | None:
+    """استخرج مدة الانتظار التي تعيدها Google لخطأ 429 إن وجدت."""
+    message = str(exc)
+    upper = message.upper()
+    is_quota_error = "429" in message or "RESOURCE_EXHAUSTED" in upper
+    if not is_quota_error:
+        return None
+
+    match = re.search(r"(?:retryDelay|retry_delay)[^0-9]*(\d+(?:\.\d+)?)s", message)
+    if match:
+        return max(float(match.group(1)), 1.0)
+
+    # في حالة 429 بدون RetryInfo، ننتظر دورة قصيرة بدل إعادة الضرب مباشرة.
+    return float(DEFAULT_TRANSIENT_RETRY_SECONDS)
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    """أخطاء الشبكة/الازدحام/الخدمة المؤقتة فقط — لا نعيد محاولة الأخطاء المنطقية."""
+    message = str(exc).lower()
+    transient_markers = (
+        "429",
+        "resource_exhausted",
+        "too many requests",
+        "503",
+        "unavailable",
+        "deadline exceeded",
+        "timed out",
+        "timeout",
+        "connection reset",
+        "connection aborted",
+        "temporary failure",
+        "temporarily unavailable",
+        "network",
+    )
+    return any(marker in message for marker in transient_markers)
 
 
 class GeminiProvider(LLMProvider):
@@ -69,8 +113,6 @@ class GeminiProvider(LLMProvider):
         if request.system:
             config["system_instruction"] = request.system
         if request.structured_schema:
-            # structured_schema كان يتم التحقق منه فقط، لكن لا يتم إرساله
-            # إلى Gemini؛ لذلك كان الـ Engine مضطرًا للاعتماد على parsing يدوي.
             config["response_mime_type"] = "application/json"
             config["response_schema"] = request.structured_schema
         tools = []
@@ -80,12 +122,31 @@ class GeminiProvider(LLMProvider):
             config["tools"] = tools
 
         start = time.monotonic()
-        response = client.models.generate_content(
-            model=model_info.model_id,
-            contents=request.prompt,
-            config=config,
-        )
-        duration_ms = int((time.monotonic() - start) * 1000)
+        last_error: Exception | None = None
+
+        for attempt in range(MAX_TRANSIENT_RETRIES + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_info.model_id,
+                    contents=request.prompt,
+                    config=config,
+                )
+                duration_ms = int((time.monotonic() - start) * 1000)
+                break
+            except Exception as exc:  # noqa: BLE001 — Google SDK يرفع أنواعًا مختلفة حسب الحالة
+                last_error = exc
+                if attempt >= MAX_TRANSIENT_RETRIES or not _is_transient_error(exc):
+                    raise
+
+                retry_delay = _retry_delay_from_error(exc)
+                if retry_delay is None:
+                    retry_delay = DEFAULT_TRANSIENT_RETRY_SECONDS
+
+                time.sleep(retry_delay)
+        else:
+            # لن نصل هنا عادةً، لكنه يحافظ على عقدة واضحة لو تغيّر الـloop مستقبلًا.
+            assert last_error is not None
+            raise last_error
 
         text = getattr(response, "text", "") or ""
         usage = getattr(response, "usage_metadata", None)
