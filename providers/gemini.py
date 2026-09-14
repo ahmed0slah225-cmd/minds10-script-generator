@@ -68,6 +68,11 @@ class GeminiProvider(LLMProvider):
             config["max_output_tokens"] = request.max_output_tokens
         if request.system:
             config["system_instruction"] = request.system
+        if request.structured_schema:
+            # structured_schema كان يتم التحقق منه فقط، لكن لا يتم إرساله
+            # إلى Gemini؛ لذلك كان الـ Engine مضطرًا للاعتماد على parsing يدوي.
+            config["response_mime_type"] = "application/json"
+            config["response_schema"] = request.structured_schema
         tools = []
         if request.enable_search:
             tools.append({"google_search": {}})
