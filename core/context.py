@@ -17,6 +17,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
+from .model_registry import normalize_model_id
+
 
 class ResearchDepth(str, Enum):
     BASIC = "basic"
@@ -37,12 +39,13 @@ class ResearchConfig:
 @dataclass
 class ModelSelection:
     """القسم 26-34: اختيار الموديل على مستوى المشروع + Override اختياري لكل Engine."""
-    project_default: str = "gemini-3-6-flash"
+    project_default: str = "gemini-3.6-flash"
     engine_overrides: dict[str, str] = field(default_factory=dict)  # engine_name -> model_id
     allow_silent_fallback: bool = False  # يظل False دائمًا إلا لو المستخدم فعّلها صراحة
 
     def model_for(self, engine_name: str) -> str:
-        return self.engine_overrides.get(engine_name, self.project_default)
+        selected = self.engine_overrides.get(engine_name, self.project_default)
+        return normalize_model_id(selected)
 
 
 @dataclass
