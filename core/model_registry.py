@@ -31,7 +31,7 @@ class ModelCapabilities:
 class ModelInfo:
     model_id: str            # المعرّف الفعلي المُرسل للـ API
     display_name: str        # ما يظهر للمستخدم في الواجهة
-    provider: str            # "google" | "openai" | "anthropic" | ...
+    provider: str             # "google" | "openai" | "anthropic" | ...
     available: bool = True
     capabilities: ModelCapabilities = field(default_factory=ModelCapabilities)
 
@@ -42,8 +42,8 @@ class ModelInfo:
 # يجب مراجعتها دوريًا (أو استبدالها بقراءة حيّة من Models API).
 # ---------------------------------------------------------------------------
 AVAILABLE_MODELS: dict[str, ModelInfo] = {
-    "gemini-3-7-flash": ModelInfo(
-        model_id="gemini-3-7-flash",
+    "gemini-3.7-flash": ModelInfo(
+        model_id="gemini-3.7-flash",
         display_name="Gemini 3.7 Flash",
         provider="google",
         available=True,
@@ -57,8 +57,8 @@ AVAILABLE_MODELS: dict[str, ModelInfo] = {
             max_output_tokens=65_536,
         ),
     ),
-    "gemini-3-6-flash": ModelInfo(
-        model_id="gemini-3-6-flash",
+    "gemini-3.6-flash": ModelInfo(
+        model_id="gemini-3.6-flash",
         display_name="Gemini 3.6 Flash",
         provider="google",
         available=True,
@@ -74,7 +74,14 @@ AVAILABLE_MODELS: dict[str, ModelInfo] = {
     ),
 }
 
-DEFAULT_MODEL_ID = "gemini-3-6-flash"
+DEFAULT_MODEL_ID = "gemini-3.6-flash"
+
+# أسماء قديمة كانت مكتوبة بشرطة بين major/minor. نطبعها هنا مرة واحدة
+# حتى أي إعداد قديم أو قيمة محفوظة لا تصل للـ Gemini API بصيغة خاطئة.
+MODEL_ID_ALIASES: dict[str, str] = {
+    "gemini-3-7-flash": "gemini-3.7-flash",
+    "gemini-3-6-flash": "gemini-3.6-flash",
+}
 
 
 class ModelNotFoundError(Exception):
@@ -86,8 +93,15 @@ class ModelCapabilityError(Exception):
     لا يحدث تشغيل خاطئ صامت، ولا استبدال سري للموديل."""
 
 
+def normalize_model_id(model_id: str) -> str:
+    """يحوّل أي اسم موديل قديم/منسوخ إلى الـ canonical ID الرسمي."""
+    candidate = (model_id or "").strip()
+    return MODEL_ID_ALIASES.get(candidate, candidate)
+
+
 def get_model(model_id: str) -> ModelInfo:
-    info = AVAILABLE_MODELS.get(model_id)
+    canonical_id = normalize_model_id(model_id)
+    info = AVAILABLE_MODELS.get(canonical_id)
     if info is None:
         raise ModelNotFoundError(f"موديل غير معروف في السجل: {model_id}")
     return info
