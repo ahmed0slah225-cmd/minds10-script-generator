@@ -1,0 +1,26 @@
+name: voice_dna_ar_eg
+version: 1.0.0
+kind: profile
+stage: planning
+
+purpose: >
+  استخراج السمات الأسلوبية (voice DNA) من عينات نصية سابقة للمستخدم —
+  طول الجمل، الإيقاع، مستوى العامية، أسلوب الأمثلة... إلخ — كملف دائم
+  يُستخدم كطبقة تأثير ثابتة (وليست جامدة) عبر بقية المحركات.
+
+depends_on: []
+conflicts_with: []
+require_llm: true
+deterministic_validation: false
+
+scope_in:
+  - يحلل عينات نصية يقدّمها المستخدم فقط
+scope_out:
+  - لا ينسخ نصوصًا قديمة حرفيًا في أي سكريبت جديد
+  - لا يفرض نفس الفقرات/الجمل بالضبط على كل فيديو
+
+required_inputs:
+  - voice_samples
+
+produced_outputs:
+  - voice_dna_profile
