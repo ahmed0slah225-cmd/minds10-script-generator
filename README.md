@@ -17,13 +17,15 @@ input_understanding → topic_understanding → source_analysis → research
 → fact_check → final_edit
 ```
 
-### طلبك المباشر — البحث + الموديل (لسه شغّالين زي ما هما)
-- مربع "تفعيل البحث المباشر من الإنترنت" في `app.py`، **افتراضيًا OFF**.
-  لو فاضي: صفر اتصال بالإنترنت (مُختبَر في `tests/test_research_toggle.py`).
-- Dropdown موديل: `Gemini 3.6 Flash` (**الافتراضي**) و`Gemini 3.7 Flash`
-  فقط، مركزي في `core/model_registry.py`.
+### البحث على الويب — DuckDuckGo تلقائي
+- البحث لم يعد يحتاج checkbox أو إذن من المستخدم.
+- مرحلة `research` تبحث مباشرة عبر مكتبة `ddgs` باستخدام DuckDuckGo backend.
+- البحث نفسه لا يستهلك Gemini API key؛ مفتاح Gemini يُستخدم فقط في مراحل الـLLM.
+- نتائج البحث تُحفظ داخل `PipelineContext.sources` وتدخل إلى مرحلة `knowledge`.
+- عمق البحث ما زال متاحًا من الواجهة: أساسي / معيار / عميق، ويغيّر عدد النتائج لكل استعلام.
+- مكتبة `ddgs` هي المكتبة الحالية؛ الحزمة القديمة `duckduckgo_search` تم تغيير اسمها إلى `ddgs`.
 
-### مفتاح API — اتصلح
+### مفتاح API + استكمال المهمة — اتصلح
 مبقاش لازم `GEMINI_API_KEY` كـ environment variable. دلوقتي فيه حقل
 "مفتاح Gemini API" في الـSidebar بالواجهة (`password` field)، يتحفظ في
 جلسة Streamlit فقط. لو سبته فاضي، أول مرحلة بتحتاج الموديل فعليًا
@@ -113,17 +115,23 @@ python3 -m py_compile $(find . -name "*.py")   # كل الملفات بترجع 
 pip install -r requirements.txt
 streamlit run app.py
 # حط مفتاح Gemini API في الـSidebar (مش لازم env var)
+# البحث يعمل تلقائيًا عبر DuckDuckGo
 ```
+
+## الاستكمال بعد نفاد مفتاح/رصيد Gemini
+- الـOrchestrator لديه `start_from`، والواجهة الآن تستخدمه فعليًا.
+- إذا فشلت مرحلة بسبب نفاد الرصيد أو أي خطأ في Gemini، يتم الاحتفاظ بكل نواتج المراحل التي نجحت داخل جلسة Streamlit.
+- بعد وضع مفتاح Gemini جديد، يظهر زر **«استكمال المهمة»** ويبدأ من المرحلة الفاشلة فقط، ثم يكمل باقي الـPipeline.
+- لا يعيد تشغيل المراحل السابقة التي نجحت.
+- هذا الاستكمال يعتمد حاليًا على جلسة Streamlit؛ لو أُغلقت/أُعيد تشغيل العملية بالكامل فالحفظ الدائم في Turso ما زال غير موصل.
 
 ## اللي *لسه* مش متصل (بصراحة، مش مخفي)
 - **الحفظ الدائم (Turso)**: `db/schema.sql` جاهز، لكن `PipelineContext`
   لسه في الذاكرة فقط داخل جلسة Streamlit. محتاج بيانات اتصال Turso
   فعلية عشان أوصّلها.
-- **Deep Research الفعلي**: `engines/research/engine.py` بيستخدم Google
-  Search tool المدمج في Gemini API (grounding) — ده بحث حقيقي، لكن مفيهوش
-  تمييز "أساسي/معيار/عميق" في عدد الاستعلامات الفعلي بعد (الواجهة بتاخد
-  الاختيار وبتحفظه في `ResearchConfig.depth`، لكن المحرك لسه بيعامل
-  المستويات التلاتة بنفس المنطق).
+- **البحث العميق المتقدم**: البحث الحالي مباشر عبر DuckDuckGo، وعدد النتائج
+  يتغير حسب عمق البحث. ما زال من الممكن لاحقًا إضافة استخراج كامل للصفحات
+  ومقارنة/تحقق أعمق من المصادر.
 - المصادر التانية المذكورة في مواصفاتك (`ComposioHQ/awesome-claude-skills`,
   `boraoztunc/skills`, `Sadhi-Team-16/Claude-Skills`,
   `msimchowitz/writing-skills`) لسه ما اتفحصتش بنفس العمق — دي كتالوجات
