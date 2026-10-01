@@ -200,15 +200,23 @@ with st.sidebar:
         use_container_width=True,
     )
 
+    # الاستكمال يظهر في الصفحة الرئيسية أيضًا، وليس داخل الـSidebar فقط.
     resume_clicked = False
-    if st.session_state.project_ctx is not None and st.session_state.failed_stage:
-        st.divider()
-        st.info(f"المشروع متوقف عند: **{st.session_state.failed_stage}**")
-        resume_clicked = st.button(
-            "▶️ استكمال المهمة",
-            type="secondary",
-            use_container_width=True,
-        )
+
+
+# زر الاستكمال الرئيسي: يظهر بعد فشل أي مرحلة حتى لو كانت الـSidebar مخفية.
+if st.session_state.project_ctx is not None and st.session_state.failed_stage:
+    st.divider()
+    st.warning(
+        f"المشروع متوقف عند مرحلة **{st.session_state.failed_stage}**. "
+        "بعد تغيير مفتاح Gemini من الـSidebar، اضغط الزر التالي. "
+        "لن يعيد المراحل التي نجحت."
+    )
+    resume_clicked = st.button(
+        f"▶️ استكمال المهمة من {st.session_state.failed_stage}",
+        type="primary",
+        use_container_width=True,
+    )
 
 
 if start_clicked:
