@@ -44,3 +44,64 @@ def test_pipeline_fails_clearly_at_first_llm_stage_without_api_key():
     assert len(failed) == 1
     assert failed[0].stage_name == "topic_understanding"
     assert "GEMINI_API_KEY" in failed[0].detail
+
+
+def test_run_node_resolves_only_missing_dependencies():
+    from core.context import PipelineContext
+    from core.orchestrator import Orchestrator
+    from core.registry import engine_registry
+
+    executed = []
+    original = engine_registry._engines.copy()
+    try:
+        required = {
+            name: (lambda ctx, model_id, _name=name: executed.append(_name))
+            for name in Orchestrator()._stage_order
+        }
+        engine_registry._engines = required
+
+        ctx = PipelineContext(project_id="p2", project_name="test")
+        results = Orchestrator().run_node(ctx, "script")
+
+        assert results[-1].stage_name == "script"
+        assert results[-1].status.value == "passed"
+        assert executed == [
+            "input_understanding",
+            "topic_understanding",
+            "research",
+            "knowledge",
+            "audience",
+            "strategy",
+            "story",
+            "retention_planning",
+            "hook",
+            "script",
+        ]
+    finally:
+        engine_registry._engines = original
+
+
+def test_run_node_does_not_rerun_completed_dependencies():
+    from core.context import PipelineContext
+    from core.orchestrator import Orchestrator
+    from core.registry import engine_registry
+
+    executed = []
+    original = engine_registry._engines.copy()
+    try:
+        engine_registry._engines = {
+            name: (lambda ctx, model_id, _name=name: executed.append(_name))
+            for name in Orchestrator()._stage_order
+        }
+        ctx = PipelineContext(project_id="p3", project_name="test")
+        for stage in [
+            "input_understanding", "topic_understanding", "research", "knowledge",
+            "audience", "strategy", "story", "retention_planning", "hook"
+        ]:
+            ctx.completed_stages[stage] = True
+
+        results = Orchestrator().run_node(ctx, "script")
+        assert [r.stage_name for r in results] == ["script"]
+        assert executed == ["script"]
+    finally:
+        engine_registry._engines = original

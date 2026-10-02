@@ -1,46 +1,41 @@
-"""اختبارات البحث المباشر عبر DuckDuckGo."""
-
-from unittest.mock import patch
+"""اختبارات مرحلة تنظيم المصادر اليدوية."""
 
 from core.context import PipelineContext, ResearchConfig
 from engines.research.engine import run as research_run
 
 
 def _make_ctx() -> PipelineContext:
-    return PipelineContext(
+    ctx = PipelineContext(
         project_id="p1",
         project_name="test",
-        research=ResearchConfig(enabled=True),
+        research=ResearchConfig(enabled=False),
     )
-
-
-def test_research_uses_duckduckgo_without_llm_provider():
-    ctx = _make_ctx()
-    ctx.topic_understanding = {"knowledge_gaps": ["إحصائية حديثة عن X"]}
-
-    fake_results = [
+    ctx.research.sources = [
         {
+            "origin": "user_provided",
             "title": "مصدر تجريبي",
-            "href": "https://example.com",
-            "body": "معلومة تجريبية",
+            "url": "https://example.com",
+            "notes": "معلومة تجريبية",
         }
     ]
+    return ctx
 
-    with patch("engines.research.engine._search_duckduckgo", return_value=fake_results) as search:
-        research_run(ctx, model_id="gemini-3.6-flash")
-        search.assert_called_once_with("إحصائية حديثة عن X", 8)
+
+def test_research_uses_user_selected_sources_without_llm():
+    ctx = _make_ctx()
+    research_run(ctx, model_id="gemini-3.6-flash")
 
     assert len(ctx.sources) == 1
-    assert ctx.sources[0].origin == "web_research"
-    assert ctx.research.sources[0]["engine"] == "duckduckgo"
+    assert ctx.sources[0].origin == "user_provided_link"
+    assert "مصدر تجريبي" in ctx.sources[0].content
+    assert ctx.run_log[-1]["provider"] == "user_selected_sources"
 
 
-def test_research_skips_when_no_knowledge_gaps():
-    ctx = _make_ctx()
-    ctx.topic_understanding = {"knowledge_gaps": []}
-
-    with patch("engines.research.engine._search_duckduckgo") as search:
-        research_run(ctx, model_id="gemini-3.6-flash")
-        search.assert_not_called()
-
+def test_research_allows_empty_manual_sources():
+    ctx = PipelineContext(
+        project_id="p1",
+        project_name="test",
+        research=ResearchConfig(enabled=False),
+    )
+    research_run(ctx, model_id="gemini-3.6-flash")
     assert ctx.sources == []

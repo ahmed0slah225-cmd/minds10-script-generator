@@ -10,6 +10,7 @@ app.py
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import streamlit as st
@@ -37,21 +38,49 @@ if "rerun_stage" not in st.session_state:
 if "rerun_from_stage" not in st.session_state:
     st.session_state.rerun_from_stage = None
 
+# مفتاح API يُحفظ داخل Session الحالية، ولا نعيد تصفيره أثناء كل rerun.
+if "gemini_api_key" not in st.session_state:
+    st.session_state.gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+if "gemini_api_key_input" not in st.session_state:
+    st.session_state.gemini_api_key_input = st.session_state.gemini_api_key
 
-def run_pipeline(ctx: PipelineContext, *, start_from: str | None = None):
+
+def run_pipeline(
+    ctx: PipelineContext,
+    *,
+    start_from: str | None = None,
+    mode: str = "full",
+):
     orchestrator = Orchestrator()
+    mode_label = "السريع" if mode == "quick" else "الكامل"
     with st.spinner(
-        "جاري تشغيل خط الإنتاج من البداية..."
+        f"جاري تشغيل المسار {mode_label} من البداية..."
         if start_from is None
         else f"جاري الاستكمال من مرحلة: {start_from}..."
     ):
-        results = orchestrator.run(ctx, start_from=start_from)
+        raw_results = orchestrator.run(ctx, start_from=start_from, mode=mode)
+
+    # عند الاستكمال لا نمسح حالة الـNodes التي نجحت قبل نقطة الفشل.
+    if start_from is not None:
+        order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+        start_index = order.get(start_from, 0)
+        previous_results = [
+            r for r in (st.session_state.last_results or [])
+            if order.get(r.stage_name, 999) < start_index
+        ]
+        results = previous_results + [
+            r for r in raw_results
+            if order.get(r.stage_name, 999) >= start_index
+        ]
+    else:
+        results = raw_results
 
     st.session_state.project_ctx = ctx
     st.session_state.last_results = results
 
     failed = next((r for r in results if r.status == StageStatus.FAILED), None)
     st.session_state.failed_stage = failed.stage_name if failed else None
+    ctx.constraints["execution_mode"] = mode
 
     return results
 
@@ -60,7 +89,7 @@ STAGES = [
     ("input_understanding", "فهم المدخلات", "تحويل الفكرة الخام إلى مدخل واضح للمشروع."),
     ("topic_understanding", "فهم الموضوع", "فهم المشكلة، السؤال، الرسالة، والفجوات المعرفية."),
     ("source_analysis", "تحليل المصادر", "قراءة المادة التي قدمها المستخدم واستخراج ما يفيد السكريبت."),
-    ("research", "البحث", "البحث التلقائي عبر DuckDuckGo وتجميع المصادر المرتبطة بالفكرة."),
+    ("research", "البحث", "تنظيم المصادر والروابط والمقالات التي يحددها صاحب المشروع."),
     ("knowledge", "بناء المعرفة", "ترتيب المعلومات والأدلة التي سيُبنى عليها المحتوى."),
     ("audience", "فهم الجمهور", "تحديد ما يهم الجمهور وكيف نخاطبه بدون محاضرة."),
     ("strategy", "الاستراتيجية", "اختيار زاوية الفيديو والرسالة وطريقة تقديمها."),
@@ -322,16 +351,24 @@ with st.sidebar:
     api_key_input = st.text_input(
         "GEMINI_API_KEY",
         type="password",
-        value=st.session_state.get("gemini_api_key", ""),
+        key="gemini_api_key_input",
         help=(
             "مفتاح Gemini مطلوب للمراحل التي تستدعي الموديل. "
-            "البحث على الويب لا يحتاج المفتاح لأنه يتم مباشرة عبر DuckDuckGo."
+            "يُحفظ في جلسة Streamlit الحالية فقط."
         ),
     )
-    st.session_state["gemini_api_key"] = api_key_input
-    configure_provider(api_key=api_key_input or None)
+    api_key_input = api_key_input.strip()
+    if api_key_input:
+        st.session_state.gemini_api_key = api_key_input
+    elif st.session_state.get("gemini_api_key"):
+        # لا نعتبر rerun أو زر Node سببًا لمسح المفتاح.
+        api_key_input = st.session_state.gemini_api_key
 
-    if not api_key_input:
+    configure_provider(api_key=st.session_state.get("gemini_api_key") or None)
+
+    if st.session_state.get("gemini_api_key"):
+        st.caption("✅ مفتاح Gemini محفوظ للجلسة الحالية.")
+    else:
         st.caption("⚠️ حط مفتاح Gemini قبل تشغيل المراحل التي تحتاج الموديل.")
 
     st.divider()
@@ -339,6 +376,18 @@ with st.sidebar:
     project_name = st.text_input("اسم المشروع", value="مشروع جديد")
     duration = st.number_input("مدة الفيديو (دقيقة)", min_value=1, max_value=180, value=15)
     audience = st.text_input("الجمهور المستهدف", value="")
+
+    execution_mode_label = st.radio(
+        "وضع التشغيل",
+        options=["⚡ سريع", "🧠 كامل"],
+        index=0,
+        horizontal=True,
+        help=(
+            "السريع يخرج سكريبت أساسي بأقل عدد ممكن من مراحل المراجعة. "
+            "الكامل يشغّل خط الإنتاج كله."
+        ),
+    )
+    execution_mode = "quick" if execution_mode_label.startswith("⚡") else "full"
 
     st.divider()
     st.subheader("الموديل")
@@ -392,27 +441,46 @@ with st.sidebar:
     resume_clicked = False
 
 
-# إعادة تشغيل مرحلة واحدة فقط.
+# تشغيل Node منفردة: حل الاعتماديات الناقصة أولًا، ثم إعادة تشغيل الـNode المطلوبة.
 if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
     rerun_stage = st.session_state.rerun_stage
     st.session_state.rerun_stage = None
     ctx = st.session_state.project_ctx
-    with st.spinner(f"جاري إعادة تشغيل مرحلة: {rerun_stage}..."):
-        rerun_result = Orchestrator().run_one_stage(ctx, rerun_stage)
 
-    st.session_state.project_ctx = ctx
-    current_results = [r for r in (st.session_state.last_results or []) if r.stage_name != rerun_stage]
-    current_results.append(rerun_result)
-    order = {name: i for i, (name, _, _) in enumerate(STAGES)}
-    current_results.sort(key=lambda r: order.get(r.stage_name, 999))
+    with st.spinner(f"تجهيز الاعتماديات وتشغيل: {rerun_stage}..."):
+        node_results = Orchestrator().run_node(ctx, rerun_stage, resolve_dependencies=True)
+
+    stage_order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+    current_results = [
+        r for r in (st.session_state.last_results or [])
+        if r.stage_name not in {item.stage_name for item in node_results}
+    ]
+    current_results.extend(node_results)
+    current_results.sort(key=lambda r: stage_order.get(r.stage_name, 999))
     st.session_state.last_results = current_results
-    if st.session_state.failed_stage == rerun_stage and rerun_result.status == StageStatus.PASSED:
-        st.session_state.failed_stage = None
 
-    if rerun_result.status == StageStatus.PASSED:
-        st.success(f"تمت إعادة مرحلة **{rerun_stage}** فقط بنجاح. المراحل السابقة واللاحقة لم تُشغّل.")
+    failed = next(
+        (r for r in node_results if r.status == StageStatus.FAILED),
+        None,
+    )
+    st.session_state.failed_stage = failed.stage_name if failed else None
+
+    target_result = next(
+        (r for r in reversed(node_results) if r.stage_name == rerun_stage),
+        node_results[-1],
+    )
+    if target_result.status == StageStatus.PASSED:
+        ran = [r.stage_name for r in node_results if r.stage_name != rerun_stage]
+        if ran:
+            st.success(
+                f"تم تشغيل **{rerun_stage}** بنجاح. "
+                f"الاعتماديات التي كانت ناقصة وشُغّلت: {', '.join(ran)}."
+            )
+        else:
+            st.success(f"تم تشغيل **{rerun_stage}** بنجاح.")
     else:
-        st.error(f"المرحلة **{rerun_stage}** ما زالت متوقفة: {rerun_result.detail}")
+        st.error(f"المرحلة **{rerun_stage}** متوقفة: {target_result.detail}")
+
     st.rerun()
 
 
@@ -441,44 +509,6 @@ if st.session_state.project_ctx is not None and st.session_state.rerun_from_stag
     st.rerun()
 
 
-if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
-    rerun_stage = st.session_state.rerun_stage
-    st.session_state.rerun_stage = None
-    ctx = st.session_state.project_ctx
-    with st.spinner(f"جاري إعادة تشغيل مرحلة: {rerun_stage}..."):
-        rerun_result = Orchestrator().run_one_stage(ctx, rerun_stage)
-
-    st.session_state.project_ctx = ctx
-    current_results = st.session_state.last_results or []
-    current_results = [r for r in current_results if r.stage_name != rerun_stage]
-    current_results.append(rerun_result)
-    order = {name: i for i, (name, _, _) in enumerate(STAGES)}
-    current_results.sort(key=lambda r: order.get(r.stage_name, 999))
-    st.session_state.last_results = current_results
-
-    if rerun_result.status == StageStatus.PASSED:
-        st.success(f"تمت إعادة مرحلة **{rerun_stage}** بنجاح. المراحل الأخرى لم تُشغّل.")
-    elif rerun_result.status == StageStatus.FAILED:
-        st.error(f"المرحلة **{rerun_stage}** ما زالت متوقفة: {rerun_result.detail}")
-
-    st.rerun()
-
-
-# زر الاستكمال الرئيسي: يظهر بعد فشل أي مرحلة حتى لو كانت الـSidebar مخفية.
-if st.session_state.project_ctx is not None and st.session_state.failed_stage:
-    st.divider()
-    st.warning(
-        f"المشروع متوقف عند مرحلة **{st.session_state.failed_stage}**. "
-        "بعد تغيير مفتاح Gemini من الـSidebar، اضغط الزر التالي. "
-        "لن يعيد المراحل التي نجحت."
-    )
-    resume_clicked = st.button(
-        f"▶️ استكمال المهمة من {st.session_state.failed_stage}",
-        type="primary",
-        use_container_width=True,
-    )
-
-
 if create_project_clicked:
     ctx = PipelineContext(
         project_id=str(uuid.uuid4()),
@@ -490,6 +520,7 @@ if create_project_clicked:
         research=ResearchConfig(enabled=False, depth=research_depth),
         model_selection=ModelSelection(project_default=selected_model_id),
     )
+    ctx.constraints["execution_mode"] = execution_mode
 
     if uploaded_pdf is not None:
         import tempfile
@@ -515,7 +546,8 @@ elif resume_clicked:
 
     if ctx is not None and failed_stage:
         # configure_provider() سبق أن أخذ المفتاح الجديد من الـSidebar في هذا rerun.
-        results = run_pipeline(ctx, start_from=failed_stage)
+        mode = ctx.constraints.get("execution_mode", execution_mode)
+        results = run_pipeline(ctx, start_from=failed_stage, mode=mode)
         render_results(ctx, results)
 
 
@@ -524,14 +556,17 @@ elif st.session_state.project_ctx is not None:
 
     st.divider()
     st.subheader("▶ تشغيل الـWorkflow")
-    st.caption("اكتب إعدادات الـNodes أولًا. عند التشغيل، كل مرحلة تستخدم ما حفظته داخل المشروع.")
+    st.caption(
+        "اكتب إعدادات الـNodes أولًا. التشغيل السريع يخرج سكريبت، "
+        "والتشغيل الكامل يمر على كل مراحل المراجعة."
+    )
     run_workflow_clicked = st.button(
         "▶️ تشغيل خط الإنتاج من البداية",
         type="primary",
         use_container_width=True,
     )
     if run_workflow_clicked:
-        results = run_pipeline(ctx)
+        results = run_pipeline(ctx, mode=execution_mode)
         render_results(ctx, results)
         st.stop()
     st.info(

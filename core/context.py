@@ -115,6 +115,9 @@ class PipelineContext:
     constraints: dict[str, Any] = field(default_factory=dict)  # مثال: قيود المصدر، ممنوعات
     version: int = 1
     run_log: list[dict[str, Any]] = field(default_factory=list)  # القسم 54 و 78: observability
+    # حالة التنفيذ الفعلية لكل Node. تُستخدم لمنع إعادة تشغيل الاعتماديات المكتملة
+    # عند الضغط على Node منفردة، ولتظل حالة الـWorkflow واضحة داخل الجلسة.
+    completed_stages: dict[str, bool] = field(default_factory=dict)
 
     def slice_for(self, required_keys: tuple[str, ...]) -> dict[str, Any]:
         """يُعيد فقط المفاتيح التي طلبتها الـ Skill عبر manifest.required_inputs،
