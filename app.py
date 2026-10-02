@@ -34,6 +34,9 @@ if "failed_stage" not in st.session_state:
 if "rerun_stage" not in st.session_state:
     st.session_state.rerun_stage = None
 
+if "rerun_from_stage" not in st.session_state:
+    st.session_state.rerun_from_stage = None
+
 
 def run_pipeline(ctx: PipelineContext, *, start_from: str | None = None):
     orchestrator = Orchestrator()
@@ -133,12 +136,23 @@ def render_pipeline(ctx: PipelineContext, results) -> None:
             st.write(f"**تفاصيل التنفيذ:** {detail}")
 
             if result and result.status == StageStatus.PASSED:
-                if st.button(
-                    f"🔄 إعادة تشغيل مرحلة {label} فقط",
+                col1, col2 = st.columns(2)
+                if col1.button(
+                    "🔄 إعادة المرحلة فقط",
                     key=f"rerun_{stage_name}",
-                    help="يشغّل هذه المرحلة وحدها بدون إعادة تشغيل المراحل السابقة.",
+                    help="يشغّل هذه المرحلة وحدها ويحافظ على كل المراحل الأخرى كما هي.",
+                    use_container_width=True,
                 ):
                     st.session_state.rerun_stage = stage_name
+                    st.rerun()
+
+                if col2.button(
+                    "▶️ إعادة من هنا وما بعدها",
+                    key=f"rerun_from_{stage_name}",
+                    help="يعيد هذه المرحلة وكل المراحل التي بعدها، بدون إعادة المراحل السابقة.",
+                    use_container_width=True,
+                ):
+                    st.session_state.rerun_from_stage = stage_name
                     st.rerun()
 
             if stage_name == "research" and ctx.research.sources:
@@ -269,7 +283,49 @@ with st.sidebar:
     resume_clicked = False
 
 
-# إعادة تشغيل مرحلة واحدة فقط. يتم تنفيذ الطلب في rerun التالي بعد ضغط زر المرحلة.
+# إعادة تشغيل مرحلة واحدة فقط.
+if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
+    rerun_stage = st.session_state.rerun_stage
+    st.session_state.rerun_stage = None
+    ctx = st.session_state.project_ctx
+    with st.spinner(f"جاري إعادة تشغيل مرحلة: {rerun_stage}..."):
+        rerun_result = Orchestrator().run_one_stage(ctx, rerun_stage)
+
+    st.session_state.project_ctx = ctx
+    current_results = [r for r in (st.session_state.last_results or []) if r.stage_name != rerun_stage]
+    current_results.append(rerun_result)
+    order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+    current_results.sort(key=lambda r: order.get(r.stage_name, 999))
+    st.session_state.last_results = current_results
+
+    if rerun_result.status == StageStatus.PASSED:
+        st.success(f"تمت إعادة مرحلة **{rerun_stage}** فقط بنجاح. المراحل السابقة واللاحقة لم تُشغّل.")
+    else:
+        st.error(f"المرحلة **{rerun_stage}** ما زالت متوقفة: {rerun_result.detail}")
+    st.rerun()
+
+
+# إعادة التشغيل من مرحلة معينة وحتى نهاية الـPipeline، مع الحفاظ على كل ما قبلها.
+if st.session_state.project_ctx is not None and st.session_state.rerun_from_stage:
+    rerun_from_stage = st.session_state.rerun_from_stage
+    st.session_state.rerun_from_stage = None
+    ctx = st.session_state.project_ctx
+    with st.spinner(f"جاري إعادة الـPipeline من مرحلة: {rerun_from_stage}..."):
+        partial_results = Orchestrator().run(ctx, start_from=rerun_from_stage)
+
+    st.session_state.project_ctx = ctx
+    stage_order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+    start_index = stage_order.get(rerun_from_stage, 0)
+    previous_results = [
+        r for r in (st.session_state.last_results or [])
+        if stage_order.get(r.stage_name, 999) < start_index
+    ]
+    st.session_state.last_results = previous_results + partial_results
+    failed = next((r for r in partial_results if r.status == StageStatus.FAILED), None)
+    st.session_state.failed_stage = failed.stage_name if failed else None
+    st.rerun()
+
+
 if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
     rerun_stage = st.session_state.rerun_stage
     st.session_state.rerun_stage = None
