@@ -31,6 +31,9 @@ if "last_results" not in st.session_state:
 if "failed_stage" not in st.session_state:
     st.session_state.failed_stage = None
 
+if "rerun_stage" not in st.session_state:
+    st.session_state.rerun_stage = None
+
 
 def run_pipeline(ctx: PipelineContext, *, start_from: str | None = None):
     orchestrator = Orchestrator()
@@ -128,6 +131,15 @@ def render_pipeline(ctx: PipelineContext, results) -> None:
             st.write(f"**الحالة:** {state}")
             st.write(f"**ماذا تفعل؟** {description}")
             st.write(f"**تفاصيل التنفيذ:** {detail}")
+
+            if result and result.status == StageStatus.PASSED:
+                if st.button(
+                    f"🔄 إعادة تشغيل مرحلة {label} فقط",
+                    key=f"rerun_{stage_name}",
+                    help="يشغّل هذه المرحلة وحدها بدون إعادة تشغيل المراحل السابقة.",
+                ):
+                    st.session_state.rerun_stage = stage_name
+                    st.rerun()
 
             if stage_name == "research" and ctx.research.sources:
                 st.write(f"**عدد نتائج البحث:** {len(ctx.research.sources)}")
@@ -255,6 +267,30 @@ with st.sidebar:
 
     # الاستكمال يظهر في الصفحة الرئيسية أيضًا، وليس داخل الـSidebar فقط.
     resume_clicked = False
+
+
+# إعادة تشغيل مرحلة واحدة فقط. يتم تنفيذ الطلب في rerun التالي بعد ضغط زر المرحلة.
+if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
+    rerun_stage = st.session_state.rerun_stage
+    st.session_state.rerun_stage = None
+    ctx = st.session_state.project_ctx
+    with st.spinner(f"جاري إعادة تشغيل مرحلة: {rerun_stage}..."):
+        rerun_result = Orchestrator().run_one_stage(ctx, rerun_stage)
+
+    st.session_state.project_ctx = ctx
+    current_results = st.session_state.last_results or []
+    current_results = [r for r in current_results if r.stage_name != rerun_stage]
+    current_results.append(rerun_result)
+    order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+    current_results.sort(key=lambda r: order.get(r.stage_name, 999))
+    st.session_state.last_results = current_results
+
+    if rerun_result.status == StageStatus.PASSED:
+        st.success(f"تمت إعادة مرحلة **{rerun_stage}** بنجاح. المراحل الأخرى لم تُشغّل.")
+    elif rerun_result.status == StageStatus.FAILED:
+        st.error(f"المرحلة **{rerun_stage}** ما زالت متوقفة: {rerun_result.detail}")
+
+    st.rerun()
 
 
 # زر الاستكمال الرئيسي: يظهر بعد فشل أي مرحلة حتى لو كانت الـSidebar مخفية.
