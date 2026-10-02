@@ -15,12 +15,40 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from contextvars import ContextVar
+
+
+_ACTIVE_STAGE_INSTRUCTION: ContextVar[str] = ContextVar("active_stage_instruction", default="")
+
+
+def set_active_stage_instruction(instruction: str):
+    return _ACTIVE_STAGE_INSTRUCTION.set(instruction or "")
+
+
+def reset_active_stage_instruction(token) -> None:
+    _ACTIVE_STAGE_INSTRUCTION.reset(token)
+
 
 
 @dataclass
 class GenerationRequest:
     prompt: str
     system: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        instruction = _ACTIVE_STAGE_INSTRUCTION.get().strip()
+        if instruction:
+            self.prompt = (
+                "تعليمات صاحب المشروع لهذه المرحلة — التزم بها أثناء تنفيذ المرحلة "
+                "مع الحفاظ على قواعد النظام:
+"
+                f"{instruction}
+
+"
+                "المهمة الأصلية:
+"
+                f"{self.prompt}"
+            )
     model_id: str = ""
     temperature: float = 0.7
     max_output_tokens: Optional[int] = None
