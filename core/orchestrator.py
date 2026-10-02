@@ -104,6 +104,14 @@ class Orchestrator:
 
         return results
 
+    def run_one_stage(self, ctx: PipelineContext, stage_name: str) -> StageResult:
+        """يشغّل مرحلة واحدة فقط، بدون إعادة تشغيل المراحل الأخرى."""
+        if stage_name not in self._stage_order:
+            return StageResult(stage_name, StageStatus.FAILED, "المرحلة غير موجودة في ترتيب الـPipeline.")
+        if stage_name not in engine_registry.names():
+            return StageResult(stage_name, StageStatus.SKIPPED, "لا يوجد Engine مسجّل لهذه المرحلة بعد.")
+        return self._run_stage(stage_name, ctx)
+
     def _run_stage(self, stage_name: str, ctx: PipelineContext) -> StageResult:
         engine_fn = engine_registry.get(stage_name)
         model_id = ctx.model_selection.model_for(stage_name)
