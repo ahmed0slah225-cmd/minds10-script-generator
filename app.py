@@ -58,7 +58,22 @@ def run_pipeline(
         if start_from is None
         else f"جاري الاستكمال من مرحلة: {start_from}..."
     ):
-        results = orchestrator.run(ctx, start_from=start_from, mode=mode)
+        raw_results = orchestrator.run(ctx, start_from=start_from, mode=mode)
+
+    # عند الاستكمال لا نمسح حالة الـNodes التي نجحت قبل نقطة الفشل.
+    if start_from is not None:
+        order = {name: i for i, (name, _, _) in enumerate(STAGES)}
+        start_index = order.get(start_from, 0)
+        previous_results = [
+            r for r in (st.session_state.last_results or [])
+            if order.get(r.stage_name, 999) < start_index
+        ]
+        results = previous_results + [
+            r for r in raw_results
+            if order.get(r.stage_name, 999) >= start_index
+        ]
+    else:
+        results = raw_results
 
     st.session_state.project_ctx = ctx
     st.session_state.last_results = results
@@ -74,7 +89,7 @@ STAGES = [
     ("input_understanding", "فهم المدخلات", "تحويل الفكرة الخام إلى مدخل واضح للمشروع."),
     ("topic_understanding", "فهم الموضوع", "فهم المشكلة، السؤال، الرسالة، والفجوات المعرفية."),
     ("source_analysis", "تحليل المصادر", "قراءة المادة التي قدمها المستخدم واستخراج ما يفيد السكريبت."),
-    ("research", "البحث", "البحث التلقائي عبر DuckDuckGo وتجميع المصادر المرتبطة بالفكرة."),
+    ("research", "البحث", "تنظيم المصادر والروابط والمقالات التي يحددها صاحب المشروع."),
     ("knowledge", "بناء المعرفة", "ترتيب المعلومات والأدلة التي سيُبنى عليها المحتوى."),
     ("audience", "فهم الجمهور", "تحديد ما يهم الجمهور وكيف نخاطبه بدون محاضرة."),
     ("strategy", "الاستراتيجية", "اختيار زاوية الفيديو والرسالة وطريقة تقديمها."),
