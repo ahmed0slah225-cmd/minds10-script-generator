@@ -43,64 +43,39 @@ def _search_duckduckgo(query: str, max_results: int) -> list[dict]:
 
 
 def run(ctx: PipelineContext, *, model_id: str) -> None:
-    # model_id موجود فقط للحفاظ على عقد الـEngine الموحد؛ البحث نفسه مستقل عن Gemini.
-    gaps = ctx.topic_understanding.get("knowledge_gaps", [])
-    if not gaps:
-        ctx.run_log.append({
-            "engine": "research",
-            "status": "skipped_no_knowledge_gaps",
-        })
-        return
+    """مرحلة البحث اليدوي: المستخدم هو من يحدد المصادر، والـPipeline ينظمها فقط."""
+    manual_sources = [
+        source for source in ctx.research.sources
+        if source.get("origin") == "user_provided"
+    ]
 
-    max_results = _max_results_for_depth(ctx.research.depth.value)
+    ctx.sources = [
+        source for source in ctx.sources
+        if source.origin != "user_provided_link"
+    ]
 
-    # لا نعيد تنفيذ gap اكتمل سابقًا لو المرحلة نفسها توقفت في منتصف البحث.
-    completed_gaps = {
-        item.get("gap")
-        for item in ctx.research.sources
-        if item.get("status") == "completed"
-    }
+    for source in manual_sources:
+        title = source.get("title", "").strip()
+        url = source.get("url", "").strip()
+        notes = source.get("notes", "").strip()
 
-    for gap in gaps:
-        if gap in completed_gaps:
-            continue
+        content_parts = [title, notes]
+        if url:
+            content_parts.append(f"URL: {url}")
 
-        results = _search_duckduckgo(gap, max_results)
-
-        normalized_sources = []
-        for item in results:
-            url = item.get("href") or item.get("url") or ""
-            title = item.get("title") or url
-            body = item.get("body") or item.get("snippet") or ""
-
-            normalized_sources.append({
-                "url": url,
-                "title": title,
-                "snippet": body,
-            })
-
-            if title or body:
-                content = f"{title}\n{body}".strip()
-                if url:
-                    content += f"\nURL: {url}"
-
-                ctx.sources.append(SourceRef(
-                    origin="web_research",
-                    content=content,
-                    is_primary=False,
-                    trust_level="unverified",
-                ))
-
-        ctx.research.sources.append({
-            "gap": gap,
-            "status": "completed",
-            "engine": "duckduckgo",
-            "results": normalized_sources,
-        })
+        ctx.sources.append(
+            SourceRef(
+                origin="user_provided_link",
+                content="\\n".join(p for p in content_parts if p),
+                is_primary=True,
+                trust_level="user_selected",
+            )
+        )
 
     ctx.run_log.append({
         "engine": "research",
         "status": "passed",
-        "provider": "duckduckgo",
-        "queries": len(gaps),
+        "provider": "user_selected_sources",
+        "sources_count": len(manual_sources),
     })
+
