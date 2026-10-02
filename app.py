@@ -83,8 +83,8 @@ def _stage_status_map(results):
     return {r.stage_name: r for r in results}
 
 
-def render_pipeline(ctx: PipelineContext, results) -> None:
-    """واجهة Pipeline بصرية: كل مرحلة بطاقة متصلة بالمرحلة التالية وتفاصيلها داخل Expander."""
+def render_pipeline(ctx: PipelineContext | None, results) -> None:
+    """واجهة Pipeline الرئيسية: تظهر من أول فتح الموقع، ثم تتحول إلى لوحة تنفيذ حيّة."""
     status_map = _stage_status_map(results or [])
     st.subheader("خط إنتاج السكريبت")
 
@@ -204,7 +204,12 @@ def render_results(ctx: PipelineContext, results) -> None:
         st.text_area("final_script", value=ctx.final_script, height=300, label_visibility="collapsed")
 
 st.title("Minds10 — مولد السيناريو")
-st.caption("منصة إنتاج سكريبتات YouTube — فهم أولًا، ثم كتابة.")
+st.caption("منصة إنتاج سكريبتات YouTube — خط إنتاج مرئي من الفكرة إلى النسخة النهائية.")
+
+# الـPipeline هو الواجهة الرئيسية من أول لحظة، وليس مجرد نتائج تظهر بعد التوليد.
+# ده يخلي شكل الموقع مختلف فعليًا عن الفورم القديم، ويخلي المستخدم شايف رحلة السكريبت كاملة.
+if st.session_state.project_ctx is None:
+    render_pipeline(None, [])
 
 with st.sidebar:
     st.header("إعدادات المشروع")
