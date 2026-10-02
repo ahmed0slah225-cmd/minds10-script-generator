@@ -97,6 +97,9 @@ class PipelineContext:
     model_selection: ModelSelection = field(default_factory=ModelSelection)
     voice_dna: VoiceDNAProfile = field(default_factory=VoiceDNAProfile)
 
+    # تعليمات يكتبها صاحب المشروع لكل Node وتنتقل مع المشروع.
+    stage_instructions: dict[str, str] = field(default_factory=dict)
+
     # نواتج المراحل المتتالية — تُملأ تباعًا بواسطة الـ Engines
     topic_understanding: dict[str, Any] = field(default_factory=dict)
     knowledge_base: list[dict[str, Any]] = field(default_factory=list)
