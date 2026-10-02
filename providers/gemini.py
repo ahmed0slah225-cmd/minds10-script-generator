@@ -202,6 +202,7 @@ class GeminiProvider(LLMProvider):
             model_id=model_info.model_id,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
+            structured_output=structured_output,
             search_sources=search_sources,
             raw=response,
         )
