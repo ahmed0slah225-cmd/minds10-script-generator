@@ -114,7 +114,7 @@ python3 -m py_compile $(find . -name "*.py")   # كل الملفات بترجع 
 pip install -r requirements.txt
 streamlit run app.py
 # حط مفتاح Gemini API في الـSidebar (مش لازم env var)
-# البحث يعمل تلقائيًا عبر DuckDuckGo
+# البحث يعتمد على المصادر التي تدخلها يدويًا
 ```
 
 ## الاستكمال بعد فشل Gemini
