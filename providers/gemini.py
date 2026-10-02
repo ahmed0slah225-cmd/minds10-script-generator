@@ -24,8 +24,10 @@ from providers.base import GenerationRequest, GenerationResult, LLMProvider
 
 # لا نقلل عدد استدعاءات الـPipeline؛ فقط نعيد محاولة الاستدعاء نفسه عند
 # الأخطاء المؤقتة. في حالة 429 نلتزم بالـretryDelay الذي ترسله Google.
-MAX_TRANSIENT_RETRIES = 4
+MAX_TRANSIENT_RETRIES = 1
 DEFAULT_TRANSIENT_RETRY_SECONDS = 5
+MAX_RETRY_DELAY_SECONDS = 15
+REQUEST_TIMEOUT_SECONDS = 60
 
 
 def _retry_delay_from_error(exc: Exception) -> float | None:
@@ -79,12 +81,25 @@ class GeminiProvider(LLMProvider):
                     "GEMINI_API_KEY غير مضبوط. اضبطه كمتغيّر بيئة أو مرّره لـ GeminiProvider(api_key=...)."
                 )
             try:
-                from google import genai  # google-genai SDK
+                from google import genai
+                from google.genai import types
             except ImportError as exc:
                 raise RuntimeError(
                     "مكتبة google-genai غير مثبّتة. نفّذ: pip install google-genai"
                 ) from exc
-            self._client = genai.Client(api_key=self._api_key)
+            http_options = types.HttpOptions(
+                timeout=REQUEST_TIMEOUT_SECONDS,
+                retry_options=types.HttpRetryOptions(
+                    attempts=1,
+                    initial_delay=0,
+                    max_delay=0,
+                    jitter=0,
+                ),
+            )
+            self._client = genai.Client(
+                api_key=self._api_key,
+                http_options=http_options,
+            )
         return self._client
 
     def supports(self, capability: str) -> bool:
@@ -142,13 +157,28 @@ class GeminiProvider(LLMProvider):
                 if retry_delay is None:
                     retry_delay = DEFAULT_TRANSIENT_RETRY_SECONDS
 
-                time.sleep(retry_delay)
+                time.sleep(min(retry_delay, MAX_RETRY_DELAY_SECONDS))
         else:
             # لن نصل هنا عادةً، لكنه يحافظ على عقدة واضحة لو تغيّر الـloop مستقبلًا.
             assert last_error is not None
             raise last_error
 
         text = getattr(response, "text", "") or ""
+
+        # في structured output الحديثة، قد يضع SDK الكائن المفسّر في response.parsed.
+        structured_output = None
+        parsed = getattr(response, "parsed", None)
+        if isinstance(parsed, dict):
+            structured_output = parsed
+        elif parsed is not None and hasattr(parsed, "model_dump"):
+            structured_output = parsed.model_dump()
+
+        if not text.strip() and structured_output is None:
+            raise RuntimeError(
+                "Gemini أعاد استجابة فارغة. المرحلة لم تعتبر ناجحة، "
+                "وجرّب مرة أخرى أو افحص الرصيد/المفتاح."
+            )
+
         usage = getattr(response, "usage_metadata", None)
         tokens_in = getattr(usage, "prompt_token_count", 0) if usage else 0
         tokens_out = getattr(usage, "candidates_token_count", 0) if usage else 0
