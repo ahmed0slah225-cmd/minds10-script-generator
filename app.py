@@ -84,106 +84,168 @@ def _stage_status_map(results):
 
 
 def render_pipeline(ctx: PipelineContext | None, results) -> None:
-    """واجهة Pipeline الرئيسية: تظهر من أول فتح الموقع، ثم تتحول إلى لوحة تنفيذ حيّة."""
+    """واجهة Workflow على شكل Automation Graph، مع تشغيل حقيقي لكل Node."""
     status_map = _stage_status_map(results or [])
-    st.subheader("خط إنتاج السكريبت")
+
+    st.subheader("⚡ Automation Workflow")
+    st.caption(
+        "كل مربع هنا Node حقيقي في خط الإنتاج. الأسهم توضح مسار التنفيذ، "
+        "والحالة تتحدث حسب نتيجة الـOrchestrator."
+    )
 
     st.markdown(
         """
         <style>
-        .pipeline-card {
-            border: 1px solid rgba(128,128,128,.28);
-            border-radius: 14px;
-            padding: 14px 16px;
-            margin: 0 0 6px 0;
-            background: rgba(128,128,128,.06);
-            min-height: 110px;
+        .wf-node {
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 12px;
+            padding: 11px 12px;
+            min-height: 112px;
+            background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025));
+            box-shadow: 0 4px 14px rgba(0,0,0,.14);
         }
-        .pipeline-title { font-size: 18px; font-weight: 700; }
-        .pipeline-desc { font-size: 13px; opacity: .78; margin-top: 5px; }
-        .pipeline-arrow { text-align:center; font-size: 24px; opacity:.55; margin: 0 0 4px; }
+        .wf-node-title {font-size:15px;font-weight:750;line-height:1.25;}
+        .wf-node-meta {font-size:11px;opacity:.65;margin-top:5px;}
+        .wf-node-desc {font-size:11px;opacity:.78;margin-top:7px;line-height:1.45;}
+        .wf-arrow {display:flex;align-items:center;justify-content:center;height:100%;font-size:22px;opacity:.6;}
+        .wf-row-label {font-size:11px;opacity:.5;margin:5px 0 8px;}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    for index, (stage_name, label, description) in enumerate(STAGES):
-        result = status_map.get(stage_name)
-        if result is None:
-            icon, state = "⚪", "لم تبدأ"
-            detail = "لم تصل المهمة إلى هذه المرحلة بعد."
-        elif result.status == StageStatus.PASSED:
-            icon, state = "🟢", "اكتملت"
-            detail = result.detail or "تم تنفيذ المرحلة بنجاح."
-        elif result.status == StageStatus.FAILED:
-            icon, state = "🔴", "توقفت هنا"
-            detail = result.detail or "حدث خطأ في هذه المرحلة."
-        elif result.status == StageStatus.SKIPPED:
-            icon, state = "⚪", "تم تجاوزها"
-            detail = result.detail or "تم تجاوزها بسبب نقطة الاستكمال."
-        else:
-            icon, state = "🔵", "قيد التنفيذ"
-            detail = result.detail or "المرحلة تعمل الآن."
+    # أربع Nodes في كل صف حتى يظل الشكل قريبًا من أدوات الـAutomation
+    # بدل قائمة عمودية طويلة.
+    row_size = 4
+    for row_start in range(0, len(STAGES), row_size):
+        row = STAGES[row_start:row_start + row_size]
+        row_num = row_start // row_size + 1
+        st.markdown(f'<div class="wf-row-label">FLOW {row_num}</div>', unsafe_allow_html=True)
 
-        st.markdown(
-            f'<div class="pipeline-card"><div class="pipeline-title">{icon} {index + 1}. {label} <span style="font-size:13px;opacity:.65">— {state}</span></div><div class="pipeline-desc">{description}</div></div>',
-            unsafe_allow_html=True,
-        )
+        layout = []
+        for _ in row:
+            layout.extend([1, 0.18])
+        layout = layout[:-1]
 
-        with st.expander(f"تفاصيل مرحلة {index + 1}: {label}"):
-            st.write(f"**الحالة:** {state}")
-            st.write(f"**ماذا تفعل؟** {description}")
-            st.write(f"**تفاصيل التنفيذ:** {detail}")
+        cols = st.columns(layout)
+        col_index = 0
 
-            if result and result.status == StageStatus.PASSED:
-                col1, col2 = st.columns(2)
-                if col1.button(
-                    "🔄 إعادة المرحلة فقط",
-                    key=f"rerun_{stage_name}",
-                    help="يشغّل هذه المرحلة وحدها ويحافظ على كل المراحل الأخرى كما هي.",
-                    use_container_width=True,
-                ):
-                    st.session_state.rerun_stage = stage_name
-                    st.rerun()
+        for local_index, (stage_name, label, description) in enumerate(row):
+            result = status_map.get(stage_name)
 
-                if col2.button(
-                    "▶️ إعادة من هنا وما بعدها",
-                    key=f"rerun_from_{stage_name}",
-                    help="يعيد هذه المرحلة وكل المراحل التي بعدها، بدون إعادة المراحل السابقة.",
-                    use_container_width=True,
-                ):
-                    st.session_state.rerun_from_stage = stage_name
-                    st.rerun()
-
-            if stage_name == "research" and ctx.research.sources:
-                st.write(f"**عدد نتائج البحث:** {len(ctx.research.sources)}")
-                for source in ctx.research.sources[:10]:
-                    st.markdown(f"- [{source.get('title', 'مصدر')}]({source.get('url', '#')})")
-            elif stage_name == "topic_understanding" and ctx.topic_understanding:
-                st.json(ctx.topic_understanding)
-            elif stage_name == "strategy" and ctx.strategy:
-                st.json(ctx.strategy)
-            elif stage_name == "story" and ctx.story:
-                st.json(ctx.story)
-            elif stage_name == "retention_planning" and ctx.outline:
-                st.json(ctx.outline)
-            elif stage_name == "hook" and ctx.hooks:
-                for h in ctx.hooks:
-                    st.markdown(f"**[{h.get('technique', 'Hook')}]** {h.get('text', '')}")
-            elif stage_name == "script" and ctx.draft_script:
-                st.text_area("ناتج المرحلة", value=ctx.draft_script, height=220, key=f"stage_{stage_name}")
-            elif stage_name == "humanize" and ctx.humanized_script:
-                st.text_area("ناتج المرحلة", value=ctx.humanized_script, height=220, key=f"stage_{stage_name}")
-            elif stage_name == "final_edit" and ctx.final_script:
-                st.text_area("ناتج المرحلة", value=ctx.final_script, height=280, key=f"stage_{stage_name}")
-            elif stage_name in {"anti_slop_review", "retention_review", "repetition_review", "fact_check"} and ctx.review_notes:
-                st.json(ctx.review_notes)
+            if result is None:
+                icon, state = "⚪", "WAITING"
+                detail = "لم تبدأ"
+            elif result.status == StageStatus.PASSED:
+                icon, state = "🟢", "DONE"
+                detail = result.detail or "اكتملت بنجاح"
+            elif result.status == StageStatus.FAILED:
+                icon, state = "🔴", "FAILED"
+                detail = result.detail or "توقفت هنا"
+            elif result.status == StageStatus.SKIPPED:
+                icon, state = "⚪", "SKIPPED"
+                detail = result.detail or "تم تجاوزها"
             else:
-                st.caption("لا يوجد ناتج مفصل لهذه المرحلة في الحالة الحالية.")
+                icon, state = "🔵", "RUNNING"
+                detail = result.detail or "قيد التنفيذ"
 
-        if index < len(STAGES) - 1:
-            st.markdown('<div class="pipeline-arrow">↓</div>', unsafe_allow_html=True)
+            with cols[col_index]:
+                st.markdown(
+                    f'''
+                    <div class="wf-node">
+                        <div class="wf-node-title">{icon} {row_start + local_index + 1}. {label}</div>
+                        <div class="wf-node-meta">{state} · {stage_name}</div>
+                        <div class="wf-node-desc">{description}</div>
+                    </div>
+                    ''',
+                    unsafe_allow_html=True,
+                )
 
+                if ctx is not None:
+                    a, b = st.columns(2)
+                    if a.button(
+                        "▶ تشغيل",
+                        key=f"node_run_{stage_name}",
+                        use_container_width=True,
+                        help="تشغيل هذه المرحلة فقط.",
+                    ):
+                        st.session_state.rerun_stage = stage_name
+                        st.rerun()
+
+                    if b.button(
+                        "⟳ من هنا",
+                        key=f"node_from_{stage_name}",
+                        use_container_width=True,
+                        help="إعادة تشغيل هذه المرحلة وكل ما بعدها.",
+                    ):
+                        st.session_state.rerun_from_stage = stage_name
+                        st.rerun()
+
+                with st.expander("تفاصيل", expanded=False):
+                    st.write(f"**الحالة:** {state}")
+                    st.write(f"**ماذا تفعل؟** {description}")
+                    st.write(f"**النتيجة:** {detail}")
+
+                    if result and result.status == StageStatus.PASSED:
+                        if stage_name == "research" and ctx and ctx.research.sources:
+                            st.write(f"عدد نتائج البحث: {len(ctx.research.sources)}")
+                            for source in ctx.research.sources[:8]:
+                                st.markdown(
+                                    f"- [{source.get('title', 'مصدر')}]({source.get('url', '#')})"
+                                )
+                        elif stage_name == "topic_understanding" and ctx and ctx.topic_understanding:
+                            st.json(ctx.topic_understanding)
+                        elif stage_name == "strategy" and ctx and ctx.strategy:
+                            st.json(ctx.strategy)
+                        elif stage_name == "story" and ctx and ctx.story:
+                            st.json(ctx.story)
+                        elif stage_name == "retention_planning" and ctx and ctx.outline:
+                            st.json(ctx.outline)
+                        elif stage_name == "hook" and ctx and ctx.hooks:
+                            for h in ctx.hooks:
+                                st.markdown(
+                                    f"**[{h.get('technique', 'Hook')}]** {h.get('text', '')}"
+                                )
+                        elif stage_name == "script" and ctx and ctx.draft_script:
+                            st.text_area(
+                                "ناتج المرحلة",
+                                value=ctx.draft_script,
+                                height=220,
+                                key=f"stage_{stage_name}",
+                            )
+                        elif stage_name == "humanize" and ctx and ctx.humanized_script:
+                            st.text_area(
+                                "ناتج المرحلة",
+                                value=ctx.humanized_script,
+                                height=220,
+                                key=f"stage_{stage_name}",
+                            )
+                        elif stage_name == "final_edit" and ctx and ctx.final_script:
+                            st.text_area(
+                                "ناتج المرحلة",
+                                value=ctx.final_script,
+                                height=280,
+                                key=f"stage_{stage_name}",
+                            )
+                        elif stage_name in {
+                            "anti_slop_review",
+                            "retention_review",
+                            "repetition_review",
+                            "fact_check",
+                        } and ctx and ctx.review_notes:
+                            st.json(ctx.review_notes)
+
+            col_index += 1
+            if local_index < len(row) - 1:
+                with cols[col_index]:
+                    st.markdown('<div class="wf-arrow">→</div>', unsafe_allow_html=True)
+                col_index += 1
+
+        if row_start + row_size < len(STAGES):
+            st.markdown(
+                '<div class="wf-arrow" style="height:34px;">↓</div>',
+                unsafe_allow_html=True,
+            )
 
 def render_results(ctx: PipelineContext, results) -> None:
     render_pipeline(ctx, results)
