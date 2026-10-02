@@ -382,9 +382,9 @@ with st.sidebar:
         pdf_page_end = col_b.number_input("إلى صفحة", min_value=1, value=20, step=1)
         st.caption("النظام هيقرأ النطاق ده بالظبط فقط، مش الملف كله.")
 
-    start_clicked = st.button(
-        "ابدأ التوليد",
-        type="primary",
+    create_project_clicked = st.button(
+        "＋ إنشاء المشروع وحفظه",
+        type="secondary",
         use_container_width=True,
     )
 
@@ -479,14 +479,14 @@ if st.session_state.project_ctx is not None and st.session_state.failed_stage:
     )
 
 
-if start_clicked:
+if create_project_clicked:
     ctx = PipelineContext(
         project_id=str(uuid.uuid4()),
         project_name=project_name,
         raw_input=raw_input,
         duration_minutes=int(duration),
         audience=audience or None,
-        # البحث أصبح تلقائيًا دائمًا.
+        # البحث اليدوي: المستخدم هو من يحدد المصادر.
         research=ResearchConfig(enabled=False, depth=research_depth),
         model_selection=ModelSelection(project_default=selected_model_id),
     )
@@ -505,9 +505,8 @@ if start_clicked:
     st.session_state.project_ctx = ctx
     st.session_state.failed_stage = None
     st.session_state.last_results = []
-
-    results = run_pipeline(ctx)
-    render_results(ctx, results)
+    st.success("تم إنشاء المشروع. اكتب تعليمات كل Node ومصادر البحث، ثم شغّل الـWorkflow من الصفحة الرئيسية.")
+    st.rerun()
 
 
 elif resume_clicked:
@@ -522,6 +521,19 @@ elif resume_clicked:
 
 elif st.session_state.project_ctx is not None:
     ctx = st.session_state.project_ctx
+
+    st.divider()
+    st.subheader("▶ تشغيل الـWorkflow")
+    st.caption("اكتب إعدادات الـNodes أولًا. عند التشغيل، كل مرحلة تستخدم ما حفظته داخل المشروع.")
+    run_workflow_clicked = st.button(
+        "▶️ تشغيل خط الإنتاج من البداية",
+        type="primary",
+        use_container_width=True,
+    )
+    if run_workflow_clicked:
+        results = run_pipeline(ctx)
+        render_results(ctx, results)
+        st.stop()
     st.info(
         f"مشروع محمّل في الجلسة: **{ctx.project_name}** — "
         f"البحث: DuckDuckGo تلقائي — "
