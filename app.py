@@ -536,9 +536,8 @@ elif st.session_state.project_ctx is not None:
         st.stop()
     st.info(
         f"مشروع محمّل في الجلسة: **{ctx.project_name}** — "
-        f"البحث: DuckDuckGo تلقائي — "
+        f"البحث: مصادر يحددها المستخدم — "
         f"الموديل: `{ctx.model_selection.project_default}`"
     )
 
-    if st.session_state.last_results:
-        render_results(ctx, st.session_state.last_results)
+    render_pipeline(ctx, st.session_state.last_results or [])
