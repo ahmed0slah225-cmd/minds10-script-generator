@@ -34,27 +34,23 @@ def reset_active_stage_instruction(token) -> None:
 class GenerationRequest:
     prompt: str
     system: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        instruction = _ACTIVE_STAGE_INSTRUCTION.get().strip()
-        if instruction:
-            self.prompt = (
-                "تعليمات صاحب المشروع لهذه المرحلة — التزم بها أثناء تنفيذ المرحلة "
-                "مع الحفاظ على قواعد النظام:
-"
-                f"{instruction}
-
-"
-                "المهمة الأصلية:
-"
-                f"{self.prompt}"
-            )
     model_id: str = ""
     temperature: float = 0.7
     max_output_tokens: Optional[int] = None
     structured_schema: Optional[dict[str, Any]] = None   # JSON schema إن كان الإخراج منظمًا
     enable_search: bool = False
     documents: list[dict[str, Any]] = field(default_factory=list)  # PDFs/صور مرفقة إن وُجدت
+
+    def __post_init__(self) -> None:
+        instruction = _ACTIVE_STAGE_INSTRUCTION.get().strip()
+        if instruction:
+            self.prompt = (
+                "تعليمات صاحب المشروع لهذه المرحلة — التزم بها أثناء تنفيذ المرحلة "
+                "مع الحفاظ على قواعد النظام:\n"
+                f"{instruction}\n\n"
+                "المهمة الأصلية:\n"
+                f"{self.prompt}"
+            )
 
 
 @dataclass
