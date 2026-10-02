@@ -118,6 +118,10 @@ class Orchestrator:
 
         import time
         start = time.monotonic()
+        from providers.base import set_active_stage_instruction, reset_active_stage_instruction
+
+        instruction = ctx.stage_instructions.get(stage_name, "")
+        instruction_token = set_active_stage_instruction(instruction)
         try:
             engine_fn(ctx, model_id=model_id)
         except Exception as exc:  # noqa: BLE001 — نريد التقاط أي خطأ وتسجيله بوضوح
@@ -125,6 +129,8 @@ class Orchestrator:
             ctx.log_run(engine=stage_name, skill=None, model_id=model_id,
                         status="failed", duration_ms=duration_ms, error=str(exc))
             return StageResult(stage_name, StageStatus.FAILED, str(exc))
+        finally:
+            reset_active_stage_instruction(instruction_token)
 
         duration_ms = int((time.monotonic() - start) * 1000)
 
