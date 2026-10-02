@@ -181,19 +181,83 @@ def render_pipeline(ctx: PipelineContext | None, results) -> None:
                         st.session_state.rerun_from_stage = stage_name
                         st.rerun()
 
-                with st.expander("تفاصيل", expanded=False):
+                with st.expander("تفاصيل المرحلة", expanded=False):
+                    current_instruction = ctx.stage_instructions.get(stage_name, "") if ctx else ""
+                    instruction = st.text_area(
+                        "تعليماتك لهذه المرحلة",
+                        value=current_instruction,
+                        height=130,
+                        key=f"instruction_{stage_name}",
+                        placeholder="اكتب بالتفصيل المطلوب، وما يجب التركيز عليه، وما الممنوع في هذه المرحلة...",
+                    )
+                    if ctx is not None:
+                        ctx.stage_instructions[stage_name] = instruction
+
                     st.write(f"**الحالة:** {state}")
-                    st.write(f"**ماذا تفعل؟** {description}")
-                    st.write(f"**النتيجة:** {detail}")
+                    st.write(f"**وصف المرحلة:** {description}")
+                    st.write(f"**آخر نتيجة:** {detail}")
+
+                    if stage_name == "research" and ctx is not None:
+                        st.markdown("### 🔎 مصادر البحث التي تختارها أنت")
+                        st.caption("سطر لكل مصدر: العنوان | الرابط | أهم نقطة أو ملاحظة")
+                        existing_sources = [
+                            s for s in ctx.research.sources
+                            if s.get("origin") == "user_provided"
+                        ]
+                        source_text = st.text_area(
+                            "المصادر والروابط والمقالات",
+                            value="\\n".join(
+                                " | ".join([
+                                    str(s.get("title", "")),
+                                    str(s.get("url", "")),
+                                    str(s.get("notes", "")),
+                                ])
+                                for s in existing_sources
+                            ),
+                            height=190,
+                            key="manual_research_sources",
+                            placeholder="كتاب / دراسة | https://... | استخدم هذه النقطة في السكريبت",
+                        )
+
+                        manual_sources = []
+                        for line in source_text.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            parts = [p.strip() for p in line.split("|", 2)]
+                            manual_sources.append({
+                                "origin": "user_provided",
+                                "title": parts[0] if parts else "",
+                                "url": parts[1] if len(parts) > 1 else "",
+                                "notes": parts[2] if len(parts) > 2 else "",
+                                "snippet": parts[2] if len(parts) > 2 else "",
+                            })
+
+                        ctx.research.sources = manual_sources
+                        from core.context import SourceRef
+                        ctx.sources = [
+                            s for s in ctx.sources
+                            if s.origin != "user_provided_link"
+                        ]
+                        for source in manual_sources:
+                            content = "\\n".join(
+                                x for x in [
+                                    source["title"],
+                                    source["notes"],
+                                    f"URL: {source['url']}" if source["url"] else "",
+                                ] if x
+                            )
+                            ctx.sources.append(SourceRef(
+                                origin="user_provided_link",
+                                content=content,
+                                is_primary=True,
+                                trust_level="user_selected",
+                            ))
+
+                        st.info("البحث الآلي متوقف. الـPipeline سيعتمد على المصادر التي تدخلها أنت.")
 
                     if result and result.status == StageStatus.PASSED:
-                        if stage_name == "research" and ctx and ctx.research.sources:
-                            st.write(f"عدد نتائج البحث: {len(ctx.research.sources)}")
-                            for source in ctx.research.sources[:8]:
-                                st.markdown(
-                                    f"- [{source.get('title', 'مصدر')}]({source.get('url', '#')})"
-                                )
-                        elif stage_name == "topic_understanding" and ctx and ctx.topic_understanding:
+                        if stage_name == "topic_understanding" and ctx and ctx.topic_understanding:
                             st.json(ctx.topic_understanding)
                         elif stage_name == "strategy" and ctx and ctx.strategy:
                             st.json(ctx.strategy)
@@ -203,36 +267,14 @@ def render_pipeline(ctx: PipelineContext | None, results) -> None:
                             st.json(ctx.outline)
                         elif stage_name == "hook" and ctx and ctx.hooks:
                             for h in ctx.hooks:
-                                st.markdown(
-                                    f"**[{h.get('technique', 'Hook')}]** {h.get('text', '')}"
-                                )
+                                st.markdown(f"**[{h.get('technique', 'Hook')}]** {h.get('text', '')}")
                         elif stage_name == "script" and ctx and ctx.draft_script:
-                            st.text_area(
-                                "ناتج المرحلة",
-                                value=ctx.draft_script,
-                                height=220,
-                                key=f"stage_{stage_name}",
-                            )
+                            st.text_area("ناتج المرحلة", value=ctx.draft_script, height=220, key=f"stage_{stage_name}")
                         elif stage_name == "humanize" and ctx and ctx.humanized_script:
-                            st.text_area(
-                                "ناتج المرحلة",
-                                value=ctx.humanized_script,
-                                height=220,
-                                key=f"stage_{stage_name}",
-                            )
+                            st.text_area("ناتج المرحلة", value=ctx.humanized_script, height=220, key=f"stage_{stage_name}")
                         elif stage_name == "final_edit" and ctx and ctx.final_script:
-                            st.text_area(
-                                "ناتج المرحلة",
-                                value=ctx.final_script,
-                                height=280,
-                                key=f"stage_{stage_name}",
-                            )
-                        elif stage_name in {
-                            "anti_slop_review",
-                            "retention_review",
-                            "repetition_review",
-                            "fact_check",
-                        } and ctx and ctx.review_notes:
+                            st.text_area("ناتج المرحلة", value=ctx.final_script, height=280, key=f"stage_{stage_name}")
+                        elif stage_name in {"anti_slop_review", "retention_review", "repetition_review", "fact_check"} and ctx and ctx.review_notes:
                             st.json(ctx.review_notes)
 
             col_index += 1
@@ -314,8 +356,8 @@ with st.sidebar:
     st.caption(f"الموديل المستخدم فعليًا: `{selected_model_id}`")
 
     st.divider()
-    st.subheader("البحث على الويب")
-    st.success("البحث يعمل تلقائيًا عبر DuckDuckGo — لا يوجد مربع إذن.")
+    st.subheader("البحث والمصادر")
+    st.info("أنت تختار وتكتب مصادر البحث والروابط والمقالات داخل Node البحث.")
     depth_choice = st.select_slider(
         "عمق البحث",
         options=["أساسي", "معيار", "عميق"],
@@ -445,7 +487,7 @@ if start_clicked:
         duration_minutes=int(duration),
         audience=audience or None,
         # البحث أصبح تلقائيًا دائمًا.
-        research=ResearchConfig(enabled=True, depth=research_depth),
+        research=ResearchConfig(enabled=False, depth=research_depth),
         model_selection=ModelSelection(project_default=selected_model_id),
     )
 
