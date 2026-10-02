@@ -297,6 +297,8 @@ if st.session_state.project_ctx is not None and st.session_state.rerun_stage:
     order = {name: i for i, (name, _, _) in enumerate(STAGES)}
     current_results.sort(key=lambda r: order.get(r.stage_name, 999))
     st.session_state.last_results = current_results
+    if st.session_state.failed_stage == rerun_stage and rerun_result.status == StageStatus.PASSED:
+        st.session_state.failed_stage = None
 
     if rerun_result.status == StageStatus.PASSED:
         st.success(f"تمت إعادة مرحلة **{rerun_stage}** فقط بنجاح. المراحل السابقة واللاحقة لم تُشغّل.")
@@ -320,8 +322,12 @@ if st.session_state.project_ctx is not None and st.session_state.rerun_from_stag
         r for r in (st.session_state.last_results or [])
         if stage_order.get(r.stage_name, 999) < start_index
     ]
-    st.session_state.last_results = previous_results + partial_results
-    failed = next((r for r in partial_results if r.status == StageStatus.FAILED), None)
+    rerun_results_only = [
+        r for r in partial_results
+        if stage_order.get(r.stage_name, 999) >= start_index
+    ]
+    st.session_state.last_results = previous_results + rerun_results_only
+    failed = next((r for r in rerun_results_only if r.status == StageStatus.FAILED), None)
     st.session_state.failed_stage = failed.stage_name if failed else None
     st.rerun()
 
